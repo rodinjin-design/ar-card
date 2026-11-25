@@ -11,7 +11,6 @@
 <meta name="apple-mobile-web-app-title" content="AR 카드">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0c1320">
-<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -57,7 +56,6 @@ main{flex:1;display:flex;flex-direction:column;width:100%;margin:0 auto;padding:
 .big:disabled{opacity:.45}
 button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 #status,.note{font-size:13px;color:var(--sub);margin:0;padding:0 22px;text-align:center}
-#mv{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0}
 @media (prefers-reduced-motion:reduce){.flip,.card{transition:none}}
 /* 손 위 모드 */
 #hand{position:fixed;inset:0;background:#000;display:none;z-index:10;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -111,15 +109,10 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
   <div class="dots" aria-hidden="true"><i class="on"></i><i></i></div>
   <div class="acts">
     <button class="big acc" id="handBtn">손 위에 올려보기</button>
-    <button class="big" id="arBtn" disabled>책상 위에 놓기 (AR)</button>
   </div>
   <p id="status"></p>
   <p class="note" id="install">앱처럼 쓰려면 Safari 공유 버튼 → <b>홈 화면에 추가</b></p>
   <p class="note">카드 디자인 © jean.on</p>
-  <model-viewer id="mv" src="models/snack.glb" alt="" loading="eager"
-    ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor">
-    <button slot="ar-button" hidden></button>
-  </model-viewer>
 </main>
 
 <section id="hand" aria-label="손 위 카드 보기">
@@ -130,7 +123,7 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
     <button class="pill" id="flip">카메라 전환</button>
   </div>
   <p id="hint">카메라를 준비하고 있어요…</p>
-  <p id="drag">화면을 좌우로 밀어서 직접 돌릴 수도 있어요</p>
+  <p id="drag">화면을 좌우로 밀어 카드를 돌리면 이모지가 터져 나와요</p>
   <div class="hbar bot">
     <button class="pill" id="handCard">카드 바꾸기</button>
     <button class="pill" id="flipCard">뒤집기</button>
@@ -143,9 +136,7 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 {
 const CARDS = { snack: 'models/snack.glb', travel: 'models/travel.glb' };
 let card = 'snack';
-const mv = document.getElementById('mv');
 const status = document.getElementById('status');
-const arBtn = document.getElementById('arBtn');
 
 // ---------- 카드 둘러보기 ----------
 const rail = document.getElementById('rail');
@@ -157,7 +148,6 @@ const setActive = name => {
   chips.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.card === name)));
   const i = cardsEl.findIndex(c => c.dataset.card === name);
   dots.forEach((d, j) => d.classList.toggle('on', j === i));
-  if (mv.getAttribute('src') !== CARDS[name]) mv.src = CARDS[name];
 };
 const scrollToCard = (name, smooth = true) => {
   const c = cardsEl.find(c => c.dataset.card === name);
@@ -197,11 +187,6 @@ rail.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft' && i > 0) pick(cardsEl[i - 1].dataset.card);
 });
 
-// 책상 위 AR (model-viewer는 화면에 보이지 않게 두고 AR만 사용)
-mv.addEventListener('load', () => { arBtn.disabled = !mv.canActivateAR; });
-arBtn.addEventListener('click', () => mv.activateAR());
-mv.addEventListener('ar-status', e => { if (e.detail.status === 'failed') status.textContent = 'AR을 시작하지 못했어요. 밝은 곳에서 평평한 면을 천천히 비춰 주세요.'; });
-
 // ---------- 손 위 모드 ----------
 const hand = { active: false };
 const el = document.getElementById('hand');
@@ -209,7 +194,7 @@ const video = document.getElementById('cam');
 const hint = document.getElementById('hint');
 const canvas = document.getElementById('gl');
 const cur = { x: 0, y: 0, s: 1, roll: 0 };
-let fx, fxOn = true, fxIn = 0;
+let fxOn = true;
 let yaw = 0, yawTarget = 0, autoSpin = true, dragX = null, shadow;
 let THREE, renderer, scene, camera, cardRoot, cardMesh, landmarker, stream, facing = 'environment', raf = 0, lastVideoTime = -1, lostAt = 0, haveFix = false;
 const loaded = {};
@@ -258,72 +243,56 @@ function softTex(draw, size) {           // 큰 캔버스에 그린 뒤 작은 �
 }
 const blurSize = d => d < 0.3 ? 14 : d < 0.5 ? 26 : d < 0.68 ? 56 : 160;
 const drawEmoji = ch => g => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '124px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.fillText(ch, 80, 88); };
-function makeFloaters(kind) {
-  const group = new THREE.Group(); scene.add(group);
-  const items = [];
-  const add = (obj, d, size, opts = {}) => {
-    group.add(obj);
-    const mats = []; obj.traverse(o => { if (o.material && !mats.includes(o.material)) { o.material.transparent = true; mats.push(o.material); } });
-    items.push({ obj, d, size, mats, sprite: obj.isSprite, base: opts.opacity ?? (0.45 + 0.55 * d),
-      x: rnd(-0.05, 1.05), y: rnd(0.02, 0.98), vx: (opts.vx ?? rnd(-0.012, 0.012)) * (0.4 + d), bob: rnd(4, 14), bs: rnd(0.5, 1.2), ph: rnd(0, 6),
-      rot: new THREE.Vector3(rnd(-0.8, 0.8), rnd(-0.8, 0.8), rnd(-0.8, 0.8)), spin: opts.spin ?? true });
-  };
-  const sprite = (draw, d) => new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(draw, blurSize(d)), depthWrite: false }));
-  if (kind === 'emoji') {
-    const emojis = ['😉', '👻', '🍩', '🍅', '📷', '🌤️', '✨', '🎈', '💸', '🪙', '🎁', '💖', '🛍️', '🍦', '⭐', '🎉', '🍿', '🧃'];
-    emojis.forEach(ch => { const d = Math.random(); add(sprite(drawEmoji(ch), d), d, 22 + 62 * d); });
-    const glossy = col => new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.15 });
-    const star = new THREE.Shape();
-    for (let i = 0; i < 8; i++) { const r = i % 2 ? 0.38 : 1, a = i / 8 * Math.PI * 2 + Math.PI / 2; i ? star.lineTo(Math.cos(a) * r, Math.sin(a) * r) : star.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
-    const starGeo = new THREE.ExtrudeGeometry(star, { depth: 0.25, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 3 }); starGeo.center();
-    const pts = []; for (let i = 0; i <= 24; i++) pts.push(new THREE.Vector3(i / 24 * 2 - 1, Math.sin(i / 24 * Math.PI * 4) * 0.35, 0));
-    const squig = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.07, 10, false);
-    const ball = new THREE.SphereGeometry(0.5, 32, 16), ring = new THREE.TorusGeometry(0.45, 0.16, 16, 40);
-    [[ball, 0x2f7bff], [ball, 0xffd23f], [ball, 0xff5c8a], [ring, 0xff3b3b], [ring, 0x9b6bff], [starGeo, 0xffc928], [starGeo, 0xffe066], [squig, 0x8a5cff], [squig, 0xff4d4d], [ball, 0x3fc6b0]]
-      .forEach(([geo, col]) => { const d = rnd(0.55, 1); add(new THREE.Mesh(geo, glossy(col)), d, 12 + 30 * d); });
-  } else {
-    const travel = ['✈️', '☁️', '🧳', '🗺️', '🏝️', '🗽', '🗼', '🌍', '🛫', '🏖️', '🌴', '🎫', '🧭', '🚢', '🗻', '📸', '🍹', '💱', '🛂', '☁️', '🎒', '🏰'];
-    travel.forEach(ch => { const d = Math.random(); add(sprite(drawEmoji(ch), d), d, 24 + 60 * d, { vx: rnd(0.006, 0.02) }); });
+// ---------- 카드를 돌릴 때마다 이모지가 흩어지듯 터져 나옴 ----------
+const EMOJI = {
+  snack: ['😉', '👻', '🍩', '🍅', '📷', '🌤️', '✨', '🎈', '💸', '🪙', '🎁', '💖', '🛍️', '🍦', '⭐', '🎉', '🍿', '🧃'],
+  travel: ['✈️', '☁️', '🧳', '🗺️', '🏝️', '🗽', '🗼', '🌍', '🛫', '🏖️', '🌴', '🎫', '🧭', '🚢', '🗻', '📸', '🍹', '💱', '🛂', '🎒', '🏰']
+};
+const texCache = {};
+const emojiTex = (ch, d) => { const k = ch + blurSize(d); return texCache[k] || (texCache[k] = softTex(drawEmoji(ch), blurSize(d))); };
+const parts = [];
+let fxGroup;
+
+function burst() {
+  if (!fxOn || !cardRoot || !cardRoot.visible) return;
+  if (!fxGroup) { fxGroup = new THREE.Group(); scene.add(fxGroup); }
+  const list = EMOJI[card] || EMOJI.snack, n = 14;
+  const k = Math.min(innerWidth, innerHeight) / 390;
+  const cx = cur.x, cy = cur.y + 0.0428 * cur.s;           // 카드 중심
+  for (let i = 0; i < n; i++) {
+    const d = Math.random();                                 // 0 멀리 ~ 1 가까이
+    const ch = list[Math.floor(Math.random() * list.length)];
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex(ch, d), transparent: true, depthWrite: false, opacity: 0 }));
+    fxGroup.add(sp);
+    const a = (i / n) * Math.PI * 2 + rnd(-0.3, 0.3), v = rnd(260, 620) * k * (0.6 + 0.6 * d);
+    parts.push({ sp, d, x: cx, y: cy, z: rnd(-1, 1) * 400,
+      vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.85 + 80 * k, vz: (d - 0.5) * 2400,
+      size: (24 + 58 * d) * k, life: 0, max: rnd(1.5, 2.3), spin: rnd(-1.5, 1.5) });
   }
-  group.visible = false;
-  return { kind, group, items };
 }
 
-function setFloaters(name) {
-  const kind = name === 'travel' ? 'travel' : 'emoji';
-  if (fx && fx.kind === kind) return;
-  if (fx) { scene.remove(fx.group); fx.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
-  fx = makeFloaters(kind);
-}
-
-function updateFloaters(dt, t) {
-  if (!fx) return;
-  fxIn += ((fxOn && cardRoot.visible ? 1 : 0) - fxIn) * Math.min(1, dt * 3);
-  fx.group.visible = fxIn > 0.01;
-  if (!fx.group.visible) return;
-  const W = innerWidth, H = innerHeight, k = Math.min(W, H) / 390;
-  // 손 위치에 따라 살짝 움직이는 원근(패럴랙스)
-  const px = cur.x / W - 0.5, py = -cur.y / H - 0.5;
-  for (const it of fx.items) {
-    it.x += it.vx * dt; if (it.x > 1.2) it.x = -0.2; if (it.x < -0.2) it.x = 1.2;
-    const par = (it.d - 0.5) * 40 * k;
-    const x = it.x * W + px * par, y = it.y * H + Math.sin(t * it.bs + it.ph) * it.bob * k + py * par;
-    it.obj.position.set(x, -y, (it.d - 0.55) * 3000);
-    const sz = it.size * k * (0.6 + 0.4 * fxIn);
-    if (it.sprite) it.obj.scale.set(sz, sz, 1);
-    else {
-      it.obj.scale.setScalar(sz);
-      if (it.spin) { it.obj.rotation.x += it.rot.x * dt; it.obj.rotation.y += it.rot.y * dt; it.obj.rotation.z += it.rot.z * dt; }
-      else it.obj.rotation.set(Math.sin(t * 0.4 + it.ph) * 0.15, Math.sin(t * 0.3 + it.ph) * 0.3, 0);
-    }
-    for (const m of it.mats) m.opacity = it.base * fxIn;
+function updateBurst(dt) {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.life += dt;
+    const t = p.life / p.max;
+    if (t >= 1) { fxGroup.remove(p.sp); p.sp.material.dispose(); parts.splice(i, 1); continue; }
+    const drag = Math.exp(-2.4 * dt);
+    p.vx *= drag; p.vy = p.vy * drag + 40 * dt; p.vz *= drag;   // 점점 느려지며 살짝 떠오름
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    p.sp.position.set(p.x, p.y, p.z);
+    const grow = t < 0.18 ? 1 - Math.pow(1 - t / 0.18, 3) * 1.0 : 1;  // 톡 튀어나오기
+    const sz = p.size * (0.3 + 0.7 * grow);
+    p.sp.scale.set(sz, sz, 1);
+    p.sp.material.rotation += p.spin * dt;
+    p.sp.material.opacity = (0.4 + 0.6 * p.d) * Math.min(1, t / 0.08) * (t > 0.6 ? 1 - (t - 0.6) / 0.4 : 1);
   }
 }
 
 hand.load = name => new Promise((res, rej) => {
   const put = obj => {
     if (cardMesh) cardRoot.remove(cardMesh);
-    cardMesh = obj; cardRoot.add(obj); setFloaters(name); res();
+    cardMesh = obj; cardRoot.add(obj); res();
   };
   if (loaded[name]) return put(loaded[name]);
   hand.loader.load(CARDS[name], g => {
@@ -396,7 +365,7 @@ function loop() {
   yaw += (yawTarget - yaw) * 0.25;
   if (cardMesh) cardMesh.rotation.y = yaw;   // 카드 세로축 기준 회전
   const now = performance.now() / 1000, dt = Math.min(0.05, now - (loop.last || now)); loop.last = now;
-  updateFloaters(dt, now);
+  updateBurst(dt);
   renderer.render(scene, camera);
 }
 
@@ -433,13 +402,14 @@ document.getElementById('flip').addEventListener('click', async () => {
 document.getElementById('handCard').addEventListener('click', () => pick(card === 'snack' ? 'travel' : 'snack'));
 const fxBtn = document.getElementById('fxBtn');
 fxBtn.addEventListener('click', () => { fxOn = !fxOn; fxBtn.setAttribute('aria-pressed', String(fxOn)); });
-document.getElementById('flipCard').addEventListener('click', () => { yawTarget = Math.round(yawTarget / Math.PI) * Math.PI + Math.PI; });
+document.getElementById('flipCard').addEventListener('click', () => { yawTarget = Math.round(yawTarget / Math.PI) * Math.PI + Math.PI; burst(); });
 const spinBtn = document.getElementById('autoSpin');
 spinBtn.addEventListener('click', () => { autoSpin = !autoSpin; spinBtn.setAttribute('aria-pressed', String(autoSpin)); spinBtn.textContent = autoSpin ? '회전 중' : '회전 멈춤'; });
 // 화면을 좌우로 밀어서 회전
-el.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; dragX = e.clientX; el.setPointerCapture(e.pointerId); });
+let dragStart = 0;
+el.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; dragX = e.clientX; dragStart = yawTarget; el.setPointerCapture(e.pointerId); });
 el.addEventListener('pointermove', e => { if (dragX === null) return; yawTarget += (e.clientX - dragX) * 0.012; dragX = e.clientX; });
-const endDrag = () => { dragX = null; };
+const endDrag = () => { if (dragX !== null && Math.abs(yawTarget - dragStart) > 0.6) burst(); dragX = null; };
 el.addEventListener('pointerup', endDrag); el.addEventListener('pointercancel', endDrag);
 }
 </script>
