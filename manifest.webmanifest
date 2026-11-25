@@ -1,0 +1,17 @@
+{
+  "name": "AR 카드",
+  "short_name": "AR 카드",
+  "description": "카드를 손 위에 올려보는 AR 앱",
+  "start_url": "/?app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1320",
+  "theme_color": "#0c1320",
+  "lang": "ko",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
