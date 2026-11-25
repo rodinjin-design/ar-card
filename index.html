@@ -26,8 +26,8 @@
    LAYOUT: 카드 선택 → 3D 뷰어 → 버튼 두 개(책상 AR, 손 위) */
 :root{color-scheme:light dark;--bg:light-dark(#eef2f6,#0c1320);--ink:light-dark(#0c1320,#eef2f6);--sub:light-dark(#4d5b6e,#9aa8bb);--acc:#3fc6b0;--panel:light-dark(#ffffff,#152033);--line:light-dark(#cfd8e3,#2a3a55)}
 *{box-sizing:border-box;min-width:0}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Pretendard Variable",Pretendard,-apple-system,"Apple SD Gothic Neo",system-ui,sans-serif;overflow-x:clip;min-height:100dvh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
-header{padding:22px 22px 0;max-width:720px;width:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Pretendard Variable",Pretendard,-apple-system,"Apple SD Gothic Neo",system-ui,sans-serif;overflow-x:clip;min-height:100dvh;display:flex;flex-direction:column;padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+header{padding:max(22px,calc(env(safe-area-inset-top) + 14px)) 22px 0;max-width:720px;width:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
 h1{font-size:30px;line-height:1.1;margin:0;letter-spacing:-.01em}
 header p{margin:4px 0 0;color:var(--sub);font-size:14px}
 main{flex:1;display:flex;flex-direction:column;width:100%;margin:0 auto;padding:14px 0 18px;gap:14px}
@@ -116,7 +116,6 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
   </div>
   <p id="status"></p>
   <p class="note" id="install">앱처럼 쓰려면 Safari 공유 버튼 → <b>홈 화면에 추가</b></p>
-  <p class="note">카드 디자인 © jean.on</p>
 </main>
 
 <section id="hand" aria-label="손 위 카드 보기">
