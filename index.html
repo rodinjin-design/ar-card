@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AR 카드 미리보기</title>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
+<style>
+/* VOICE: 차분한 제품 미리보기, 카드 한 장이 주인공
+   IDEA: 카드 발급 전 실물을 손에 올려보는 쇼룸
+   PICTURE: 화면 대부분을 채우는 3D 카드, 바닥 그림자
+   COLOUR and TYPE: 짙은 남청 바탕, 민트 포인트 / Pretendard
+   LAYOUT: 상단 제목, 가운데 카드 뷰어, 하단 조작 버튼 */
+:root{color-scheme:light dark;--bg:light-dark(#eef2f6,#0c1320);--ink:light-dark(#0c1320,#eef2f6);--sub:light-dark(#4d5b6e,#9aa8bb);--acc:#3fc6b0;--panel:light-dark(#ffffff,#152033)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Pretendard,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;overflow-x:clip;min-height:100dvh;display:flex;flex-direction:column}
+header{padding:24px max(5vw,16px) 0;max-width:900px;width:100%;margin:0 auto}
+h1{font-size:clamp(26px,5vw,40px);line-height:1.1;margin:0 0 6px;text-wrap:balance}
+header p{margin:0;color:var(--sub)}
+main{flex:1;display:flex;flex-direction:column;max-width:900px;width:100%;margin:0 auto;padding:12px max(5vw,16px) 24px;gap:14px}
+model-viewer{flex:1;width:100%;min-height:420px;background:radial-gradient(ellipse at 50% 70%,light-dark(#ffffff,#1d2c45),transparent 70%);border-radius:24px;--poster-color:transparent}
+.ar{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);border:0;border-radius:999px;background:var(--acc);color:#06201b;font:700 17px Pretendard,sans-serif;padding:14px 26px;min-height:48px;box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:pointer}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row button{flex:1 1 120px;min-height:48px;border-radius:14px;border:1px solid light-dark(#cfd8e3,#2a3a55);background:var(--panel);color:var(--ink);font:600 16px Pretendard,sans-serif;cursor:pointer}
+.row button:focus-visible,.ar:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.note{font-size:14px;color:var(--sub);margin:0}
+.note b{color:var(--ink)}
+#status{font-size:14px;color:var(--sub);margin:0;min-height:1.5em}
+</style>
+</head>
+<body>
+<header>
+  <h1>내 카드, 책상 위에 올려보기</h1>
+  <p>실제 크기(85.6 × 54mm)로 만든 카드를 AR로 띄워 봐요.</p>
+</header>
+<main>
+  <model-viewer id="mv" src="card.glb" alt="샘플 체크카드 3D 모델"
+    ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor"
+    camera-controls touch-action="pan-y" auto-rotate auto-rotate-delay="1500" rotation-per-second="20deg"
+    camera-orbit="20deg 80deg auto" field-of-view="30deg" interaction-prompt="none"
+    shadow-intensity="1" shadow-softness="0.8" environment-image="neutral" exposure="1.1">
+    <button slot="ar-button" class="ar">AR로 보기</button>
+  </model-viewer>
+  <p id="status"></p>
+  <div class="row">
+    <button id="front">앞면</button>
+    <button id="back">뒷면</button>
+    <button id="spin">회전 멈춤</button>
+  </div>
+  <p class="note"><b>AR 버튼이 안 보이면</b> 이 페이지를 HTTPS 주소로 배포해 폰 브라우저(Android Chrome, iOS Safari)에서 직접 열어 주세요. 카드 디자인은 샘플이에요.</p>
+</main>
+<script>
+{
+  const mv = document.getElementById('mv');
+  const status = document.getElementById('status');
+  const spin = document.getElementById('spin');
+  const look = deg => { mv.autoRotate = false; spin.textContent = '회전 시작'; mv.cameraOrbit = `${deg}deg 80deg auto`; };
+  document.getElementById('front').addEventListener('click', () => look(0));
+  document.getElementById('back').addEventListener('click', () => look(180));
+  spin.addEventListener('click', () => {
+    mv.autoRotate = !mv.autoRotate;
+    spin.textContent = mv.autoRotate ? '회전 멈춤' : '회전 시작';
+  });
+  mv.addEventListener('load', () => {
+    status.textContent = mv.canActivateAR ? '이 기기에서 AR을 쓸 수 있어요. 아래 버튼을 눌러 바닥이나 책상을 비춰 보세요.' : '지금 화면에선 3D 미리보기만 돼요. 손가락으로 돌려 보세요.';
+  });
+  mv.addEventListener('ar-status', e => {
+    if (e.detail.status === 'failed') status.textContent = 'AR을 시작하지 못했어요. 밝은 곳에서 평평한 면을 천천히 비춰 주세요.';
+  });
+  mv.addEventListener('error', () => { status.textContent = '모델을 불러오지 못했어요.'; });
+}
+</script>
+</body>
+</html>
