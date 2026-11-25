@@ -102,6 +102,7 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
     <button class="pill" id="handCard">카드 바꾸기</button>
     <button class="pill" id="flipCard">뒤집기</button>
     <button class="pill" id="autoSpin" aria-pressed="true">회전 중</button>
+    <button class="pill" id="fxBtn" aria-pressed="true">이모지</button>
   </div>
 </section>
 
@@ -141,6 +142,7 @@ const video = document.getElementById('cam');
 const hint = document.getElementById('hint');
 const canvas = document.getElementById('gl');
 const cur = { x: 0, y: 0, s: 1, roll: 0 };
+let fx, fxOn = true, fxIn = 0;
 let yaw = 0, yawTarget = 0, autoSpin = true, dragX = null, shadow;
 let THREE, renderer, scene, camera, cardRoot, cardMesh, landmarker, stream, facing = 'environment', raf = 0, lastVideoTime = -1, lostAt = 0, haveFix = false;
 const loaded = {};
@@ -168,7 +170,8 @@ async function setup() {
   const g = sc.getContext('2d'), rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   rg.addColorStop(0, 'rgba(0,0,0,.45)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
   shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false }));
-  shadow.visible = false; shadow.position.z = -500; scene.add(shadow);
+  shadow.visible = false; shadow.position.z = -3000; shadow.renderOrder = -1; shadow.material.depthTest = false; scene.add(shadow);
+  fx = makeFloaters();
   hand.loader = new GLTFLoader();
   const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
   landmarker = await vision.HandLandmarker.createFromOptions(files, {
@@ -176,6 +179,70 @@ async function setup() {
     runningMode: 'VIDEO', numHands: 1, minHandDetectionConfidence: 0.5, minTrackingConfidence: 0.5
   });
   addEventListener('resize', resize);
+}
+
+// ---------- 카드 주변을 떠다니는 이모지·3D 오브젝트 ----------
+function makeFloaters() {
+  const group = new THREE.Group(); scene.add(group);
+  const items = [];
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const emojiTex = ch => {
+    const c = document.createElement('canvas'); c.width = c.height = 160;
+    const g = c.getContext('2d'); g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '128px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    g.fillText(ch, 80, 88);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  const glossy = col => new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.15 });
+  // 별 모양
+  const starShape = new THREE.Shape();
+  for (let i = 0; i < 8; i++) { const r = i % 2 ? 0.38 : 1, a = i / 8 * Math.PI * 2 + Math.PI / 2; i ? starShape.lineTo(Math.cos(a) * r, Math.sin(a) * r) : starShape.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+  const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 0.25, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 3 }); starGeo.center();
+  // 꼬불꼬불 선
+  const squigPts = []; for (let i = 0; i <= 24; i++) squigPts.push(new THREE.Vector3(i / 24 * 2 - 1, Math.sin(i / 24 * Math.PI * 4) * 0.35, 0));
+  const squigGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(squigPts), 80, 0.07, 10, false);
+  const shapes = [
+    () => new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16), glossy(0x2f7bff)),
+    () => new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16), glossy(0xffd23f)),
+    () => new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16), glossy(0xff5c8a)),
+    () => new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.16, 16, 40), glossy(0xff3b3b)),
+    () => new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.16, 16, 40), glossy(0x9b6bff)),
+    () => new THREE.Mesh(starGeo, glossy(0xffc928)),
+    () => new THREE.Mesh(starGeo, glossy(0xffe066)),
+    () => new THREE.Mesh(squigGeo, glossy(0x8a5cff)),
+    () => new THREE.Mesh(squigGeo, glossy(0xff4d4d)),
+  ];
+  const emojis = ['😉', '👻', '🍩', '🍅', '📷', '🌤️', '✨', '🎈', '💸', '🪙', '🎁', '💖'];
+  const add = (obj, sprite, size) => {
+    group.add(obj);
+    items.push({ obj, sprite, size,
+      r: rnd(0.045, 0.11), th: rnd(0, Math.PI * 2), sp: rnd(0.25, 0.6) * (Math.random() < 0.3 ? -1 : 1),
+      y: rnd(-0.03, 0.12), bob: rnd(0.004, 0.012), bs: rnd(0.8, 1.6), ph: rnd(0, 6),
+      rot: new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)) });
+  };
+  emojis.forEach(ch => add(new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex(ch), transparent: true })), true, rnd(0.018, 0.028)));
+  shapes.forEach(f => add(f(), false, rnd(0.008, 0.016)));
+  shapes.forEach((f, i) => { if (i % 2 === 0) add(f(), false, rnd(0.005, 0.01)); });
+  group.visible = false;
+  return { group, items };
+}
+
+function updateFloaters(dt, t) {
+  if (!fx) return;
+  const show = fxOn && cardRoot.visible;
+  fxIn += ((show ? 1 : 0) - fxIn) * Math.min(1, dt * 5);
+  fx.group.visible = fxIn > 0.01;
+  if (!fx.group.visible) return;
+  const s = cur.s, cx = cur.x, cy = cur.y + 0.0428 * s; // 카드 중심 기준
+  for (const it of fx.items) {
+    it.th += it.sp * dt;
+    const x = Math.cos(it.th) * it.r, z = Math.sin(it.th) * it.r;
+    const y = it.y - 0.04 + Math.sin(t * it.bs + it.ph) * it.bob;
+    it.obj.position.set(cx + x * s * fxIn, cy + y * s, z * s);
+    const k = it.size * s * fxIn;
+    if (it.sprite) it.obj.scale.set(k * 1.6, k * 1.6, 1);
+    else { it.obj.scale.setScalar(k); it.obj.rotation.x += it.rot.x * dt; it.obj.rotation.y += it.rot.y * dt; it.obj.rotation.z += it.rot.z * dt; }
+  }
 }
 
 hand.load = name => new Promise((res, rej) => {
@@ -253,6 +320,8 @@ function loop() {
   if (autoSpin && dragX === null) yawTarget += 0.018;
   yaw += (yawTarget - yaw) * 0.25;
   if (cardMesh) cardMesh.rotation.y = yaw;   // 카드 세로축 기준 회전
+  const now = performance.now() / 1000, dt = Math.min(0.05, now - (loop.last || now)); loop.last = now;
+  updateFloaters(dt, now);
   renderer.render(scene, camera);
 }
 
@@ -285,6 +354,8 @@ document.getElementById('flip').addEventListener('click', async () => {
   try { await startCam(); } catch (e) { setHint('카메라를 바꾸지 못했어요.'); }
 });
 document.getElementById('handCard').addEventListener('click', () => pick(card === 'snack' ? 'travel' : 'snack'));
+const fxBtn = document.getElementById('fxBtn');
+fxBtn.addEventListener('click', () => { fxOn = !fxOn; fxBtn.setAttribute('aria-pressed', String(fxOn)); });
 document.getElementById('flipCard').addEventListener('click', () => { yawTarget = Math.round(yawTarget / Math.PI) * Math.PI + Math.PI; });
 const spinBtn = document.getElementById('autoSpin');
 spinBtn.addEventListener('click', () => { autoSpin = !autoSpin; spinBtn.setAttribute('aria-pressed', String(autoSpin)); spinBtn.textContent = autoSpin ? '회전 중' : '회전 멈춤'; });
