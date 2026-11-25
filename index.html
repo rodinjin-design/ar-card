@@ -53,9 +53,13 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .hbar.bot{bottom:calc(env(safe-area-inset-bottom) + 8px);justify-content:center;flex-wrap:wrap}
 .pill[aria-pressed=true]{background:linear-gradient(180deg,rgba(120,240,220,.45),rgba(63,198,176,.22));border-color:rgba(160,255,235,.6)}
 #drag{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 72px);margin:0;text-align:center;color:rgba(255,255,255,.85);font-size:13px;z-index:2;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.pill{min-height:46px;padding:0 20px;border-radius:999px;color:#0c1320;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer;background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.5));border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 #fff,inset 0 -1px 0 rgba(255,255,255,.4),0 8px 24px rgba(0,0,0,.16);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);transition:transform .15s,background .2s}
+.pill:active{transform:scale(.95)}
+.pill[aria-pressed=false]{background:linear-gradient(180deg,rgba(255,255,255,.42),rgba(255,255,255,.2));color:rgba(12,19,32,.7)}
+#drag{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 72px);margin:0;text-align:center;color:rgba(255,255,255,.85);font-size:13px;z-index:2;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .pill{min-height:46px;padding:0 20px;border-radius:999px;color:#fff;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.35);background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.12),0 8px 24px rgba(0,0,0,.18);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);transition:transform .15s,background .2s}
 .pill:active{transform:scale(.95)}
-#hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;padding:14px 20px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 8px 24px rgba(0,0,0,.18);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);text-shadow:0 1px 2px rgba(0,0,0,.35);color:#fff;text-align:center;max-width:80vw;z-index:2;pointer-events:none;transition:opacity .25s}
+#hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;padding:14px 20px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.5));border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 #fff,0 8px 24px rgba(0,0,0,.16);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);color:#0c1320;text-align:center;max-width:80vw;z-index:2;pointer-events:none;transition:opacity .25s}
 @media (prefers-reduced-motion:reduce){#hint{transition:none}}
 </style>
 </head>
@@ -192,15 +196,6 @@ function softTex(draw, size) {           // 큰 캔버스에 그린 뒤 작은 �
 }
 const blurSize = d => d < 0.3 ? 14 : d < 0.5 ? 26 : d < 0.68 ? 56 : 160;
 const drawEmoji = ch => g => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '124px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.fillText(ch, 80, 88); };
-const drawCloud = g => {
-  const puffs = [[52, 96, 34], [82, 78, 42], [114, 94, 32], [70, 106, 28], [100, 108, 30]];
-  for (const [x, y, r] of puffs) {
-    const rg = g.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.2, x, y, r);
-    rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.75, 'rgba(240,246,255,.95)'); rg.addColorStop(1, 'rgba(225,235,250,0)');
-    g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-  }
-};
-
 function makeFloaters(kind) {
   const group = new THREE.Group(); scene.add(group);
   const items = [];
@@ -225,21 +220,15 @@ function makeFloaters(kind) {
     [[ball, 0x2f7bff], [ball, 0xffd23f], [ball, 0xff5c8a], [ring, 0xff3b3b], [ring, 0x9b6bff], [starGeo, 0xffc928], [starGeo, 0xffe066], [squig, 0x8a5cff], [squig, 0xff4d4d], [ball, 0x3fc6b0]]
       .forEach(([geo, col]) => { const d = rnd(0.55, 1); add(new THREE.Mesh(geo, glossy(col)), d, 12 + 30 * d); });
   } else {
-    // 멀리: 흐린 구름 스프라이트 / 가까이: 몽글몽글한 3D 구름
-    for (let i = 0; i < 9; i++) { const d = rnd(0, 0.6); add(sprite(drawCloud, d), d, 90 + 150 * d, { vx: rnd(0.008, 0.02), opacity: 0.35 + 0.6 * d, spin: false }); }
-    const puffs = [[0, 0, 0, 0.5], [0.45, -0.05, 0, 0.38], [-0.45, -0.08, 0.02, 0.36], [0.2, 0.22, -0.05, 0.36], [-0.18, 0.18, 0.05, 0.32], [0.75, -0.15, 0, 0.24], [-0.75, -0.15, 0, 0.22]];
-    for (let i = 0; i < 6; i++) {
-      const g = new THREE.Group(); const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0xdfe8f5, emissiveIntensity: 0.35 });
-      puffs.forEach(([x, y, z, r]) => { const p = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16), m); p.position.set(x, y, z); p.scale.y = 0.85; g.add(p); });
-      const d = rnd(0.62, 1); add(g, d, 70 + 70 * d, { vx: rnd(0.01, 0.022), spin: false });
-    }
+    const travel = ['✈️', '☁️', '🧳', '🗺️', '🏝️', '🗽', '🗼', '🌍', '🛫', '🏖️', '🌴', '🎫', '🧭', '🚢', '🗻', '📸', '🍹', '💱', '🛂', '☁️', '🎒', '🏰'];
+    travel.forEach(ch => { const d = Math.random(); add(sprite(drawEmoji(ch), d), d, 24 + 60 * d, { vx: rnd(0.006, 0.02) }); });
   }
   group.visible = false;
   return { kind, group, items };
 }
 
 function setFloaters(name) {
-  const kind = name === 'travel' ? 'cloud' : 'emoji';
+  const kind = name === 'travel' ? 'travel' : 'emoji';
   if (fx && fx.kind === kind) return;
   if (fx) { scene.remove(fx.group); fx.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
   fx = makeFloaters(kind);
