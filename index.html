@@ -74,6 +74,10 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .pill{min-height:46px;padding:0 20px;border-radius:999px;color:#fff;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.35);background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.12),0 8px 24px rgba(0,0,0,.18);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);transition:transform .15s,background .2s}
 .pill:active{transform:scale(.95)}
 #hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;padding:18px 26px;border-radius:28px;max-width:82vw;width:max-content;z-index:2;pointer-events:none;text-align:center;color:#fff;font-weight:700;font-size:17px;line-height:1.4;letter-spacing:-.01em;text-shadow:0 1px 8px rgba(0,0,0,.35);background:radial-gradient(120% 90% at 20% 0%,rgba(255,255,255,.32),rgba(255,255,255,.06) 55%),linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.45);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -1px 0 rgba(255,255,255,.18),inset 0 0 24px rgba(255,255,255,.12),0 12px 36px rgba(0,0,0,.22);backdrop-filter:blur(18px) saturate(200%) brightness(1.05);-webkit-backdrop-filter:blur(18px) saturate(200%) brightness(1.05);transition:opacity .25s}
+#touch{position:absolute;left:0;top:0;z-index:2;margin:0;color:#fff;font-weight:800;font-size:22px;letter-spacing:.01em;text-shadow:0 2px 10px rgba(0,0,0,.45);pointer-events:none;opacity:0;transition:opacity .25s;will-change:transform}
+#touch span{display:block;animation:bob 1.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+@media (prefers-reduced-motion:reduce){#touch span{animation:none}}
 #hint small{display:block;margin-top:4px;font-weight:500;font-size:13px;opacity:.85}
 @media (prefers-reduced-motion:reduce){#hint{transition:none}}
 </style>
@@ -118,6 +122,7 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 <section id="hand" aria-label="손 위 카드 보기">
   <video id="cam" playsinline muted autoplay></video>
   <canvas id="gl"></canvas>
+  <p id="touch"><span>Touch!</span></p>
   <p id="hint">카메라를 준비하고 있어요…</p>
   <div class="hbar bot">
     <button class="pill" id="handCard">카드 바꾸기</button>
@@ -184,6 +189,7 @@ const hand = { active: false };
 const el = document.getElementById('hand');
 const video = document.getElementById('cam');
 const hint = document.getElementById('hint');
+const touchEl = document.getElementById('touch');
 const canvas = document.getElementById('gl');
 const cur = { x: 0, y: 0, s: 1, roll: 0 };
 const CARD_SCALE = 1.1;                 // 손 위 카드 크기: 실물보다 10% 크게
@@ -346,13 +352,17 @@ function loop() {
       cardRoot.scale.setScalar(cur.s * CARD_SCALE);
       cardRoot.rotation.set(-0.12, 0, cur.roll);          // 살짝 뒤로 젖혀 입체감
       cardRoot.position.set(cur.x - Math.sin(cur.roll) * half, cur.y + Math.cos(cur.roll) * half, 0);
+      // 카드 위 'Touch!' 라벨 (화면 좌표)
+      const topX = cur.x - Math.sin(cur.roll) * half * 2, topY = -(cur.y + Math.cos(cur.roll) * half * 2);
+      touchEl.style.transform = `translate(${topX}px, ${topY - 18}px) translate(-50%, -100%)`;
+      touchEl.style.opacity = 1;
       shadow.visible = true;
       shadow.position.set(cur.x, cur.y, -500);
       shadow.scale.set(0.07 * cur.s, 0.022 * cur.s, 1);
       cardRoot.visible = true; lostAt = 0; setHint('');
     } else {
       if (!lostAt) lostAt = performance.now();
-      if (performance.now() - lostAt > 400) { cardRoot.visible = false; if (shadow) shadow.visible = false; haveFix = false; setHint('손바닥을 펴서 화면에 보여 주세요', '아래로 쓸어내리면 닫혀요'); }
+      if (performance.now() - lostAt > 400) { cardRoot.visible = false; touchEl.style.opacity = 0; if (shadow) shadow.visible = false; haveFix = false; setHint('손바닥을 펴서 화면에 보여 주세요', '아래로 쓸어내리면 닫혀요'); }
     }
   }
   const now = performance.now() / 1000, dt = Math.min(0.05, now - (loop.last || now)); loop.last = now;
@@ -385,7 +395,7 @@ async function openHand() {
 }
 function closeHand() {
   hand.active = false; el.classList.remove('on'); cancelAnimationFrame(raf);
-  scrollToCard(card, false);
+  scrollToCard(card, false); touchEl.style.opacity = 0;
   if (stream) stream.getTracks().forEach(t => t.stop()); stream = null;
   if (cardRoot) cardRoot.visible = false; haveFix = false;
 }
