@@ -27,21 +27,38 @@
 :root{color-scheme:light dark;--bg:light-dark(#eef2f6,#0c1320);--ink:light-dark(#0c1320,#eef2f6);--sub:light-dark(#4d5b6e,#9aa8bb);--acc:#3fc6b0;--panel:light-dark(#ffffff,#152033);--line:light-dark(#cfd8e3,#2a3a55)}
 *{box-sizing:border-box;min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Apple SD Gothic Neo","Pretendard","Noto Sans KR",system-ui,sans-serif;overflow-x:clip;min-height:100dvh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
-header{padding:20px max(5vw,16px) 0;max-width:720px;width:100%;margin:0 auto}
-h1{font-size:clamp(26px,6vw,38px);line-height:1.1;margin:0 0 6px;text-wrap:balance}
-header p{margin:0;color:var(--sub)}
-main{flex:1;display:flex;flex-direction:column;max-width:720px;width:100%;margin:0 auto;padding:14px max(5vw,16px) 24px;gap:12px}
-.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
-.seg button{min-height:44px;border:0;border-radius:12px;background:transparent;color:var(--sub);font-weight:600;font-size:16px;font-family:inherit;cursor:pointer}
-.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
-model-viewer{flex:1;width:100%;min-height:440px;background:radial-gradient(ellipse at 50% 65%,light-dark(#ffffff,#1d2c45),transparent 70%);border-radius:24px;--poster-color:transparent}
-.row{display:flex;gap:10px;flex-wrap:wrap}
-.row button,.big{flex:1 1 120px;min-height:48px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:600;font-size:16px;font-family:inherit;cursor:pointer}
-.big{min-height:56px;font-size:17px}
-.big.acc{background:var(--acc);border-color:var(--acc);color:#06201b}
+header{padding:22px 22px 0;max-width:720px;width:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:30px;line-height:1.1;margin:0;letter-spacing:-.01em}
+header p{margin:4px 0 0;color:var(--sub);font-size:14px}
+main{flex:1;display:flex;flex-direction:column;width:100%;margin:0 auto;padding:14px 0 18px;gap:14px}
+.chips{display:flex;gap:8px;padding:0 22px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;min-height:40px;padding:0 20px;border-radius:12px;border:0;background:light-dark(#e1e7f0,#1a2740);color:var(--ink);font-weight:600;font-size:15px;font-family:inherit;cursor:pointer;transition:background .2s,color .2s}
+.chips button[aria-pressed=true]{background:#1f4bff;color:#fff}
+.rail{--cw:min(64vw,300px);display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;padding:18px calc((100% - var(--cw))/2) 30px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.rail::-webkit-scrollbar{display:none}
+.card{flex:none;width:var(--cw);scroll-snap-align:center;margin:0;perspective:1200px;transition:transform .25s,opacity .25s;transform-origin:50% 60%}
+.flip{position:relative;aspect-ratio:54/85.6;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.2,.8,.2,1);cursor:pointer}
+.card.flipped .flip{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:6.5%/4.1%;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-shadow:0 22px 40px -14px rgba(20,40,80,.45),0 4px 10px rgba(20,40,80,.15)}
+.face img{width:100%;height:100%;object-fit:cover;display:block}
+.face.back{transform:rotateY(180deg)}
+.face::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.35) 0%,rgba(255,255,255,0) 35%,rgba(255,255,255,0) 70%,rgba(255,255,255,.12));pointer-events:none}
+.card figcaption{text-align:center;margin-top:16px}
+.card figcaption b{display:block;font-size:19px}
+.card figcaption span{color:var(--sub);font-size:13px}
+.dots{display:flex;justify-content:center;gap:6px;margin-top:-6px}
+.dots i{width:6px;height:6px;border-radius:3px;background:var(--line);transition:width .25s,background .25s}
+.dots i.on{width:18px;background:var(--ink)}
+.acts{display:flex;flex-direction:column;gap:10px;padding:4px 22px 0;max-width:520px;width:100%;margin:0 auto}
+.big{min-height:56px;border-radius:18px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:700;font-size:17px;font-family:inherit;cursor:pointer;transition:transform .15s}
+.big:active{transform:scale(.97)}
+.big.acc{background:#0c1320;border-color:#0c1320;color:#fff}
 .big:disabled{opacity:.45}
 button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
-#status,.note{font-size:14px;color:var(--sub);margin:0}
+#status,.note{font-size:13px;color:var(--sub);margin:0;padding:0 22px;text-align:center}
+#mv{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0}
+@media (prefers-reduced-motion:reduce){.flip,.card{transition:none}}
 /* 손 위 모드 */
 #hand{position:fixed;inset:0;background:#000;display:none;z-index:10;touch-action:none;user-select:none;-webkit-user-select:none}
 #hand.on{display:block}
@@ -65,33 +82,44 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 </head>
 <body>
 <header>
-  <h1>카드를 손 위에 올려보기</h1>
-  <p>실제 크기(54 × 85.6mm) 카드를 AR로 띄워 봐요.</p>
+  <div>
+    <h1>My Cards</h1>
+    <p>넘겨 보고, 눌러서 뒷면까지 확인해요</p>
+  </div>
 </header>
 <main>
-  <div class="seg" role="group" aria-label="카드 선택">
+  <div class="chips" role="group" aria-label="카드 선택">
     <button data-card="snack" aria-pressed="true">Snack</button>
     <button data-card="travel" aria-pressed="false">Travel</button>
   </div>
-  <model-viewer id="mv" src="models/snack.glb" alt="카드 3D 모델"
-    ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor"
-    camera-controls touch-action="pan-y" auto-rotate auto-rotate-delay="1500" rotation-per-second="20deg"
-    camera-orbit="15deg 85deg auto" field-of-view="28deg" interaction-prompt="none"
-    shadow-intensity="1" shadow-softness="0.8" environment-image="neutral" exposure="1.05">
-    <button slot="ar-button" hidden></button>
-  </model-viewer>
-  <div class="row">
-    <button id="front">앞면</button>
-    <button id="back">뒷면</button>
-    <button id="spin">회전 멈춤</button>
+  <div class="rail" id="rail">
+    <figure class="card" data-card="snack">
+      <div class="flip" role="button" tabindex="0" aria-label="Snack 카드 뒤집기">
+        <div class="face"><img src="img/snack_front.jpg" alt="Snack 카드 앞면"></div>
+        <div class="face back"><img src="img/snack_back.jpg" alt="Snack 카드 뒷면"></div>
+      </div>
+      <figcaption><b>Snack</b><span>Heritage Refresh · Daily Dose</span></figcaption>
+    </figure>
+    <figure class="card" data-card="travel">
+      <div class="flip" role="button" tabindex="0" aria-label="Travel 카드 뒤집기">
+        <div class="face"><img src="img/travel_front.jpg" alt="Travel 카드 앞면"></div>
+        <div class="face back"><img src="img/travel_back.jpg" alt="Travel 카드 뒷면"></div>
+      </div>
+      <figcaption><b>Travel</b><span>Boarding pass · Travel card</span></figcaption>
+    </figure>
   </div>
-  <div class="row">
-    <button class="big acc" id="handBtn">손 위에 올리기</button>
+  <div class="dots" aria-hidden="true"><i class="on"></i><i></i></div>
+  <div class="acts">
+    <button class="big acc" id="handBtn">손 위에 올려보기</button>
     <button class="big" id="arBtn" disabled>책상 위에 놓기 (AR)</button>
   </div>
   <p id="status"></p>
-  <p class="note" id="install">앱처럼 쓰려면 Safari 아래 공유 버튼 → <b>홈 화면에 추가</b>를 누르세요. 아이콘을 누르면 바로 카메라가 열려요.</p>
-  <p class="note">손 위에 올리기는 카메라로 손바닥을 인식해요. 손을 펴서 화면 가운데에 보여 주세요. 카드 디자인 © jean.on</p>
+  <p class="note" id="install">앱처럼 쓰려면 Safari 공유 버튼 → <b>홈 화면에 추가</b></p>
+  <p class="note">카드 디자인 © jean.on</p>
+  <model-viewer id="mv" src="models/snack.glb" alt="" loading="eager"
+    ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor">
+    <button slot="ar-button" hidden></button>
+  </model-viewer>
 </main>
 
 <section id="hand" aria-label="손 위 카드 보기">
@@ -117,26 +145,60 @@ const CARDS = { snack: 'models/snack.glb', travel: 'models/travel.glb' };
 let card = 'snack';
 const mv = document.getElementById('mv');
 const status = document.getElementById('status');
-const spin = document.getElementById('spin');
 const arBtn = document.getElementById('arBtn');
 
-// ---------- 3D 뷰어 ----------
-const look = deg => { mv.autoRotate = false; spin.textContent = '회전 시작'; mv.cameraOrbit = `${deg}deg 85deg auto`; };
-document.getElementById('front').addEventListener('click', () => look(0));
-document.getElementById('back').addEventListener('click', () => look(180));
-spin.addEventListener('click', () => { mv.autoRotate = !mv.autoRotate; spin.textContent = mv.autoRotate ? '회전 멈춤' : '회전 시작'; });
-const segBtns = [...document.querySelectorAll('.seg button')];
-const pick = name => {
+// ---------- 카드 둘러보기 ----------
+const rail = document.getElementById('rail');
+const cardsEl = [...rail.querySelectorAll('.card')];
+const chips = [...document.querySelectorAll('.chips button')];
+const dots = [...document.querySelectorAll('.dots i')];
+const setActive = name => {
   card = name;
-  segBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.card === name)));
-  mv.src = CARDS[name];
+  chips.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.card === name)));
+  const i = cardsEl.findIndex(c => c.dataset.card === name);
+  dots.forEach((d, j) => d.classList.toggle('on', j === i));
+  if (mv.getAttribute('src') !== CARDS[name]) mv.src = CARDS[name];
+};
+const scrollToCard = (name, smooth = true) => {
+  const c = cardsEl.find(c => c.dataset.card === name);
+  rail.scrollTo({ left: c.offsetLeft - (rail.clientWidth - c.offsetWidth) / 2, behavior: smooth ? 'smooth' : 'auto' });
+};
+const pick = name => {
+  setActive(name); scrollToCard(name, !hand.active);
   if (hand.active) hand.load(name).catch(() => {});
 };
-segBtns.forEach(b => b.addEventListener('click', () => pick(b.dataset.card)));
-mv.addEventListener('load', () => {
-  arBtn.disabled = !mv.canActivateAR;
-  status.textContent = mv.canActivateAR ? '' : '이 기기에선 책상 AR을 쓸 수 없어요. 손 위에 올리기는 쓸 수 있어요.';
+chips.forEach(b => b.addEventListener('click', () => pick(b.dataset.card)));
+// 스크롤 위치에 따라 가운데 카드는 크게, 옆 카드는 작고 옅게
+const onScroll = () => {
+  const mid = rail.scrollLeft + rail.clientWidth / 2;
+  let best = null, bd = 1e9;
+  for (const c of cardsEl) {
+    const d = (c.offsetLeft + c.offsetWidth / 2 - mid) / c.offsetWidth;
+    const t = Math.min(1, Math.abs(d));
+    c.style.transform = `scale(${1 - 0.14 * t}) rotateY(${Math.max(-1, Math.min(1, d)) * -8}deg)`;
+    c.style.opacity = String(1 - 0.35 * t);
+    if (Math.abs(d) < bd) { bd = Math.abs(d); best = c; }
+  }
+  if (best && best.dataset.card !== card) setActive(best.dataset.card);
+};
+rail.addEventListener('scroll', () => requestAnimationFrame(onScroll), { passive: true });
+addEventListener('resize', onScroll);
+requestAnimationFrame(onScroll);
+// 가운데 카드를 누르면 뒤집기, 옆 카드를 누르면 가운데로
+cardsEl.forEach(c => {
+  const flip = c.querySelector('.flip');
+  const act = () => c.dataset.card === card ? c.classList.toggle('flipped') : pick(c.dataset.card);
+  flip.addEventListener('click', act);
+  flip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
 });
+rail.addEventListener('keydown', e => {
+  const i = cardsEl.findIndex(c => c.dataset.card === card);
+  if (e.key === 'ArrowRight' && i < cardsEl.length - 1) pick(cardsEl[i + 1].dataset.card);
+  if (e.key === 'ArrowLeft' && i > 0) pick(cardsEl[i - 1].dataset.card);
+});
+
+// 책상 위 AR (model-viewer는 화면에 보이지 않게 두고 AR만 사용)
+mv.addEventListener('load', () => { arBtn.disabled = !mv.canActivateAR; });
 arBtn.addEventListener('click', () => mv.activateAR());
 mv.addEventListener('ar-status', e => { if (e.detail.status === 'failed') status.textContent = 'AR을 시작하지 못했어요. 밝은 곳에서 평평한 면을 천천히 비춰 주세요.'; });
 
@@ -355,13 +417,14 @@ async function openHand() {
 }
 function closeHand() {
   hand.active = false; el.classList.remove('on'); cancelAnimationFrame(raf);
+  scrollToCard(card, false);
   if (stream) stream.getTracks().forEach(t => t.stop()); stream = null;
   if (cardRoot) cardRoot.visible = false; haveFix = false;
 }
 document.getElementById('handBtn').addEventListener('click', openHand);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 if (standalone) document.getElementById('install').hidden = true;
-if (standalone || location.search.includes('app')) openHand();
+if (location.hash === '#hand') openHand();
 document.getElementById('close').addEventListener('click', closeHand);
 document.getElementById('flip').addEventListener('click', async () => {
   facing = facing === 'environment' ? 'user' : 'environment'; haveFix = false;

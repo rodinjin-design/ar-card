@@ -2,7 +2,7 @@
   "name": "AR 카드",
   "short_name": "AR 카드",
   "description": "카드를 손 위에 올려보는 AR 앱",
-  "start_url": "/?app",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
