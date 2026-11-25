@@ -1,6 +1,7 @@
-"""실물 크기 카드 3D 모델(card.glb) 생성기.
-사용법: python3 build_card.py [front.png] [back.png]
-이미지를 주지 않으면 샘플 디자인을 그려서 사용한다. 이미지 비율은 85.6:53.98 (예: 1712x1080).
+"""실물 크기 카드 3D 모델(.glb) 생성기.
+사용법: python3 build_card.py front.png back.png out.glb [--portrait]
+--portrait: 세로형 카드 (이미지 1080x1712 권장). 기본은 가로형(1712x1080).
+이미지를 주지 않으면 샘플 디자인을 그려서 사용한다.
 """
 import sys, math
 import numpy as np
@@ -9,8 +10,12 @@ import trimesh
 from trimesh.visual import TextureVisuals
 from trimesh.visual.material import PBRMaterial
 
+PORTRAIT = "--portrait" in sys.argv
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 W, H, T, R = 0.0856, 0.05398, 0.0008, 0.00318   # ISO/IEC 7810 ID-1 (m)
 PX = 1712, 1080
+if PORTRAIT:
+    W, H, PX = H, W, (1080, 1712)
 FONT = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
 
 
@@ -101,16 +106,16 @@ def edge(pts):
 
 
 def main():
-    front = Image.open(sys.argv[1]).convert("RGB").resize(PX) if len(sys.argv) > 1 else sample_front()
-    back = Image.open(sys.argv[2]).convert("RGB").resize(PX) if len(sys.argv) > 2 else sample_back()
-    front.save("front.png"); back.save("back.png")
+    front = Image.open(ARGS[0]).convert("RGB").resize(PX) if len(ARGS) > 0 else sample_front()
+    back = Image.open(ARGS[1]).convert("RGB").resize(PX) if len(ARGS) > 1 else sample_back()
+    out = ARGS[2] if len(ARGS) > 2 else "card.glb"
     pts = outline()
     scene = trimesh.Scene()
     scene.add_geometry(face(pts, T / 2, front), node_name="front")
     scene.add_geometry(face(pts, -T / 2, back, back=True), node_name="back")
     scene.add_geometry(edge(pts), node_name="edge")
-    scene.export("card.glb")
-    print("card.glb written")
+    scene.export(out)
+    print(out, "written")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,13 @@
 # AR Card
 
-실제 크기(85.6 × 54mm) 카드를 AR로 띄워보는 데모 페이지.
+세로형 실물 크기(54 × 85.6mm) 카드를 3D·AR로 보는 데모 페이지.
 
-- `index.html` — model-viewer 기반 3D/AR 뷰어 (Android Scene Viewer, iOS Quick Look)
-- `card.glb` — 카드 3D 모델
-- `build_card.py` — 앞·뒷면 이미지로 `card.glb` 다시 만들기: `python3 build_card.py front.png back.png`
+- **손 위에 올리기**: 카메라로 손바닥을 인식해 카드를 손 위에 띄움 (MediaPipe Hand Landmarker + three.js)
+- **책상 위에 놓기**: Android Scene Viewer / iOS Quick Look AR (model-viewer)
+- 카드: `models/snack.glb`, `models/travel.glb` (디자인 © jean.on)
+
+카드 추가·교체:
+```
+python3 build_card.py 앞면.png 뒷면.png models/새카드.glb --portrait
+```
+그리고 `index.html`의 `CARDS`에 항목을 추가한다.
