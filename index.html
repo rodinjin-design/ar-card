@@ -51,10 +51,11 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .hbar{position:absolute;left:0;right:0;display:flex;justify-content:space-between;gap:10px;padding:14px 16px;z-index:2}
 .hbar.top{top:env(safe-area-inset-top)}
 .hbar.bot{bottom:calc(env(safe-area-inset-bottom) + 8px);justify-content:center;flex-wrap:wrap}
-.pill[aria-pressed=true]{background:#3fc6b0;color:#06201b}
+.pill[aria-pressed=true]{background:linear-gradient(180deg,rgba(120,240,220,.45),rgba(63,198,176,.22));border-color:rgba(160,255,235,.6)}
 #drag{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 72px);margin:0;text-align:center;color:rgba(255,255,255,.85);font-size:13px;z-index:2;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.pill{min-height:44px;padding:0 18px;border-radius:999px;border:0;background:rgba(12,19,32,.72);color:#fff;font-weight:600;font-size:15px;font-family:inherit;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);cursor:pointer}
-#hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;padding:14px 20px;border-radius:16px;background:rgba(12,19,32,.72);color:#fff;text-align:center;max-width:80vw;z-index:2;pointer-events:none;transition:opacity .25s}
+.pill{min-height:46px;padding:0 20px;border-radius:999px;color:#fff;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.35);background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.12),0 8px 24px rgba(0,0,0,.18);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);transition:transform .15s,background .2s}
+.pill:active{transform:scale(.95)}
+#hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;padding:14px 20px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 8px 24px rgba(0,0,0,.18);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);text-shadow:0 1px 2px rgba(0,0,0,.35);color:#fff;text-align:center;max-width:80vw;z-index:2;pointer-events:none;transition:opacity .25s}
 @media (prefers-reduced-motion:reduce){#hint{transition:none}}
 </style>
 </head>
@@ -125,7 +126,7 @@ const pick = name => {
   card = name;
   segBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.card === name)));
   mv.src = CARDS[name];
-  if (hand.active) hand.load(name);
+  if (hand.active) hand.load(name).catch(() => {});
 };
 segBtns.forEach(b => b.addEventListener('click', () => pick(b.dataset.card)));
 mv.addEventListener('load', () => {
@@ -170,8 +171,7 @@ async function setup() {
   const g = sc.getContext('2d'), rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   rg.addColorStop(0, 'rgba(0,0,0,.45)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
   shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false }));
-  shadow.visible = false; shadow.position.z = -3000; shadow.renderOrder = -1; shadow.material.depthTest = false; scene.add(shadow);
-  fx = makeFloaters();
+  shadow.visible = false; shadow.position.z = -5000; shadow.renderOrder = -1; shadow.material.depthTest = false; scene.add(shadow);
   hand.loader = new GLTFLoader();
   const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
   landmarker = await vision.HandLandmarker.createFromOptions(files, {
@@ -181,74 +181,98 @@ async function setup() {
   addEventListener('resize', resize);
 }
 
-// ---------- 카드 주변을 떠다니는 이모지·3D 오브젝트 ----------
-function makeFloaters() {
+// ---------- 화면 전체에 떠다니는 오브젝트 (Snack: 이모지, Travel: 구름) ----------
+// d: 깊이 0(멀리)~1(가까이). 멀수록 작고 흐리고 옅게, 카드 뒤로 지나감
+const rnd = (a, b) => a + Math.random() * (b - a);
+function softTex(draw, size) {           // 큰 캔버스에 그린 뒤 작은 캔버스로 줄여 흐림 효과
+  const big = document.createElement('canvas'); big.width = big.height = 160; draw(big.getContext('2d'));
+  let c = big;
+  if (size < 160) { c = document.createElement('canvas'); c.width = c.height = size; c.getContext('2d').drawImage(big, 0, 0, size, size); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; return t;
+}
+const blurSize = d => d < 0.3 ? 14 : d < 0.5 ? 26 : d < 0.68 ? 56 : 160;
+const drawEmoji = ch => g => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '124px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.fillText(ch, 80, 88); };
+const drawCloud = g => {
+  const puffs = [[52, 96, 34], [82, 78, 42], [114, 94, 32], [70, 106, 28], [100, 108, 30]];
+  for (const [x, y, r] of puffs) {
+    const rg = g.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.2, x, y, r);
+    rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.75, 'rgba(240,246,255,.95)'); rg.addColorStop(1, 'rgba(225,235,250,0)');
+    g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+};
+
+function makeFloaters(kind) {
   const group = new THREE.Group(); scene.add(group);
   const items = [];
-  const rnd = (a, b) => a + Math.random() * (b - a);
-  const emojiTex = ch => {
-    const c = document.createElement('canvas'); c.width = c.height = 160;
-    const g = c.getContext('2d'); g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = '128px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-    g.fillText(ch, 80, 88);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-  };
-  const glossy = col => new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.15 });
-  // 별 모양
-  const starShape = new THREE.Shape();
-  for (let i = 0; i < 8; i++) { const r = i % 2 ? 0.38 : 1, a = i / 8 * Math.PI * 2 + Math.PI / 2; i ? starShape.lineTo(Math.cos(a) * r, Math.sin(a) * r) : starShape.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
-  const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 0.25, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 3 }); starGeo.center();
-  // 꼬불꼬불 선
-  const squigPts = []; for (let i = 0; i <= 24; i++) squigPts.push(new THREE.Vector3(i / 24 * 2 - 1, Math.sin(i / 24 * Math.PI * 4) * 0.35, 0));
-  const squigGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(squigPts), 80, 0.07, 10, false);
-  const shapes = [
-    () => new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16), glossy(0x2f7bff)),
-    () => new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16), glossy(0xffd23f)),
-    () => new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16), glossy(0xff5c8a)),
-    () => new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.16, 16, 40), glossy(0xff3b3b)),
-    () => new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.16, 16, 40), glossy(0x9b6bff)),
-    () => new THREE.Mesh(starGeo, glossy(0xffc928)),
-    () => new THREE.Mesh(starGeo, glossy(0xffe066)),
-    () => new THREE.Mesh(squigGeo, glossy(0x8a5cff)),
-    () => new THREE.Mesh(squigGeo, glossy(0xff4d4d)),
-  ];
-  const emojis = ['😉', '👻', '🍩', '🍅', '📷', '🌤️', '✨', '🎈', '💸', '🪙', '🎁', '💖'];
-  const add = (obj, sprite, size) => {
+  const add = (obj, d, size, opts = {}) => {
     group.add(obj);
-    items.push({ obj, sprite, size,
-      r: rnd(0.045, 0.11), th: rnd(0, Math.PI * 2), sp: rnd(0.25, 0.6) * (Math.random() < 0.3 ? -1 : 1),
-      y: rnd(-0.03, 0.12), bob: rnd(0.004, 0.012), bs: rnd(0.8, 1.6), ph: rnd(0, 6),
-      rot: new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)) });
+    const mats = []; obj.traverse(o => { if (o.material && !mats.includes(o.material)) { o.material.transparent = true; mats.push(o.material); } });
+    items.push({ obj, d, size, mats, sprite: obj.isSprite, base: opts.opacity ?? (0.45 + 0.55 * d),
+      x: rnd(-0.05, 1.05), y: rnd(0.02, 0.98), vx: (opts.vx ?? rnd(-0.012, 0.012)) * (0.4 + d), bob: rnd(4, 14), bs: rnd(0.5, 1.2), ph: rnd(0, 6),
+      rot: new THREE.Vector3(rnd(-0.8, 0.8), rnd(-0.8, 0.8), rnd(-0.8, 0.8)), spin: opts.spin ?? true });
   };
-  emojis.forEach(ch => add(new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex(ch), transparent: true })), true, rnd(0.018, 0.028)));
-  shapes.forEach(f => add(f(), false, rnd(0.008, 0.016)));
-  shapes.forEach((f, i) => { if (i % 2 === 0) add(f(), false, rnd(0.005, 0.01)); });
+  const sprite = (draw, d) => new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(draw, blurSize(d)), depthWrite: false }));
+  if (kind === 'emoji') {
+    const emojis = ['😉', '👻', '🍩', '🍅', '📷', '🌤️', '✨', '🎈', '💸', '🪙', '🎁', '💖', '🛍️', '🍦', '⭐', '🎉', '🍿', '🧃'];
+    emojis.forEach(ch => { const d = Math.random(); add(sprite(drawEmoji(ch), d), d, 22 + 62 * d); });
+    const glossy = col => new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.15 });
+    const star = new THREE.Shape();
+    for (let i = 0; i < 8; i++) { const r = i % 2 ? 0.38 : 1, a = i / 8 * Math.PI * 2 + Math.PI / 2; i ? star.lineTo(Math.cos(a) * r, Math.sin(a) * r) : star.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+    const starGeo = new THREE.ExtrudeGeometry(star, { depth: 0.25, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 3 }); starGeo.center();
+    const pts = []; for (let i = 0; i <= 24; i++) pts.push(new THREE.Vector3(i / 24 * 2 - 1, Math.sin(i / 24 * Math.PI * 4) * 0.35, 0));
+    const squig = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.07, 10, false);
+    const ball = new THREE.SphereGeometry(0.5, 32, 16), ring = new THREE.TorusGeometry(0.45, 0.16, 16, 40);
+    [[ball, 0x2f7bff], [ball, 0xffd23f], [ball, 0xff5c8a], [ring, 0xff3b3b], [ring, 0x9b6bff], [starGeo, 0xffc928], [starGeo, 0xffe066], [squig, 0x8a5cff], [squig, 0xff4d4d], [ball, 0x3fc6b0]]
+      .forEach(([geo, col]) => { const d = rnd(0.55, 1); add(new THREE.Mesh(geo, glossy(col)), d, 12 + 30 * d); });
+  } else {
+    // 멀리: 흐린 구름 스프라이트 / 가까이: 몽글몽글한 3D 구름
+    for (let i = 0; i < 9; i++) { const d = rnd(0, 0.6); add(sprite(drawCloud, d), d, 90 + 150 * d, { vx: rnd(0.008, 0.02), opacity: 0.35 + 0.6 * d, spin: false }); }
+    const puffs = [[0, 0, 0, 0.5], [0.45, -0.05, 0, 0.38], [-0.45, -0.08, 0.02, 0.36], [0.2, 0.22, -0.05, 0.36], [-0.18, 0.18, 0.05, 0.32], [0.75, -0.15, 0, 0.24], [-0.75, -0.15, 0, 0.22]];
+    for (let i = 0; i < 6; i++) {
+      const g = new THREE.Group(); const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0xdfe8f5, emissiveIntensity: 0.35 });
+      puffs.forEach(([x, y, z, r]) => { const p = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16), m); p.position.set(x, y, z); p.scale.y = 0.85; g.add(p); });
+      const d = rnd(0.62, 1); add(g, d, 70 + 70 * d, { vx: rnd(0.01, 0.022), spin: false });
+    }
+  }
   group.visible = false;
-  return { group, items };
+  return { kind, group, items };
+}
+
+function setFloaters(name) {
+  const kind = name === 'travel' ? 'cloud' : 'emoji';
+  if (fx && fx.kind === kind) return;
+  if (fx) { scene.remove(fx.group); fx.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
+  fx = makeFloaters(kind);
 }
 
 function updateFloaters(dt, t) {
   if (!fx) return;
-  const show = fxOn && cardRoot.visible;
-  fxIn += ((show ? 1 : 0) - fxIn) * Math.min(1, dt * 5);
+  fxIn += ((fxOn && cardRoot.visible ? 1 : 0) - fxIn) * Math.min(1, dt * 3);
   fx.group.visible = fxIn > 0.01;
   if (!fx.group.visible) return;
-  const s = cur.s, cx = cur.x, cy = cur.y + 0.0428 * s; // 카드 중심 기준
+  const W = innerWidth, H = innerHeight, k = Math.min(W, H) / 390;
+  // 손 위치에 따라 살짝 움직이는 원근(패럴랙스)
+  const px = cur.x / W - 0.5, py = -cur.y / H - 0.5;
   for (const it of fx.items) {
-    it.th += it.sp * dt;
-    const x = Math.cos(it.th) * it.r, z = Math.sin(it.th) * it.r;
-    const y = it.y - 0.04 + Math.sin(t * it.bs + it.ph) * it.bob;
-    it.obj.position.set(cx + x * s * fxIn, cy + y * s, z * s);
-    const k = it.size * s * fxIn;
-    if (it.sprite) it.obj.scale.set(k * 1.6, k * 1.6, 1);
-    else { it.obj.scale.setScalar(k); it.obj.rotation.x += it.rot.x * dt; it.obj.rotation.y += it.rot.y * dt; it.obj.rotation.z += it.rot.z * dt; }
+    it.x += it.vx * dt; if (it.x > 1.2) it.x = -0.2; if (it.x < -0.2) it.x = 1.2;
+    const par = (it.d - 0.5) * 40 * k;
+    const x = it.x * W + px * par, y = it.y * H + Math.sin(t * it.bs + it.ph) * it.bob * k + py * par;
+    it.obj.position.set(x, -y, (it.d - 0.55) * 3000);
+    const sz = it.size * k * (0.6 + 0.4 * fxIn);
+    if (it.sprite) it.obj.scale.set(sz, sz, 1);
+    else {
+      it.obj.scale.setScalar(sz);
+      if (it.spin) { it.obj.rotation.x += it.rot.x * dt; it.obj.rotation.y += it.rot.y * dt; it.obj.rotation.z += it.rot.z * dt; }
+      else it.obj.rotation.set(Math.sin(t * 0.4 + it.ph) * 0.15, Math.sin(t * 0.3 + it.ph) * 0.3, 0);
+    }
+    for (const m of it.mats) m.opacity = it.base * fxIn;
   }
 }
 
 hand.load = name => new Promise((res, rej) => {
   const put = obj => {
     if (cardMesh) cardRoot.remove(cardMesh);
-    cardMesh = obj; cardRoot.add(obj); res();
+    cardMesh = obj; cardRoot.add(obj); setFloaters(name); res();
   };
   if (loaded[name]) return put(loaded[name]);
   hand.loader.load(CARDS[name], g => {
@@ -331,6 +355,7 @@ async function openHand() {
     if (!landmarker) { setHint('손 인식 모델을 불러오고 있어요… (처음 한 번)'); await setup(); }
     resize();
     await hand.load(card);
+    Object.keys(CARDS).forEach(n => { if (!loaded[n]) hand.loader.load(CARDS[n], g => { const o = new THREE.Group(); g.scene.position.y = -0.0428; o.add(g.scene); loaded[n] = o; }); }); // 다른 카드 미리 로드
     await startCam();
     setHint('손바닥을 펴서 화면에 보여 주세요');
     cancelAnimationFrame(raf); loop();
