@@ -63,6 +63,9 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 #hand.on{display:block}
 #hand video,#hand canvas{position:absolute;inset:0;width:100%;height:100%}
 #hand video{object-fit:cover;filter:var(--vf,none);transition:filter .6s}
+#bgc{display:none}
+#hand.vbg #bgc{display:block}
+#hand.vbg video{opacity:0}
 /* 카메라 톤: Snack은 맑고 화사하게, Travel은 햇살 같은 따뜻한 톤 */
 #hand{--vf:brightness(.8) contrast(1.04) saturate(1.05);--wash:rgba(225,238,255,.5)}
 #hand[data-tone=travel]{--vf:brightness(.8) contrast(1.04) saturate(1.15) sepia(.14) hue-rotate(-8deg);--wash:rgba(255,206,150,.55)}
@@ -133,6 +136,7 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 
 <section id="hand" aria-label="손 위 카드 보기">
   <video id="cam" playsinline muted autoplay></video>
+  <canvas id="bgc"></canvas>
   <div id="tone"></div>
   <canvas id="gl"></canvas>
   <div id="grain"></div>
@@ -390,8 +394,57 @@ function pose(lm, wl) {
   const ang = Math.atan2(P[5].y - P[17].y, P[5].x - P[17].x);
   let roll = ang; while (roll > Math.PI / 2) roll -= Math.PI; while (roll < -Math.PI / 2) roll += Math.PI;
   roll = Math.max(-0.3, Math.min(0.3, -roll * 0.5));
-  return { x: cx, y: -cy, scale, roll, palmW: d2(5, 17) };
+  return { x: cx, y: -cy, scale, roll, palmW: d2(5, 17), P };
 }
+// ---------- Travel 가상 배경: 여행 사진 위에 손만 오려서 합성 ----------
+// 사진은 페이지를 새로 불러올 때 한 번만 무작위로 고름
+const TRAVEL_BGS = ['bg/travel1.jpg', 'bg/travel2.jpg', 'bg/travel3.jpg', 'bg/travel4.jpg', 'bg/travel5.jpg'];
+const travelBg = new Image();
+travelBg.src = TRAVEL_BGS[Math.floor(Math.random() * TRAVEL_BGS.length)];
+const bgc = document.getElementById('bgc'), bctx = bgc.getContext('2d');
+const maskC = document.createElement('canvas'), mctx = maskC.getContext('2d');
+const handC = document.createElement('canvas'), hctx = handC.getContext('2d');
+let handPts = null;
+
+// 이미지·영상을 화면에 cover로 그리기
+function coverRect(w, h, W, H) { const s = Math.max(W / w, H / h); return [(W - w * s) / 2, (H - h * s) / 2, w * s, h * s]; }
+
+function drawVirtualBg() {
+  const on = card === 'travel' && travelBg.complete && travelBg.naturalWidth > 0;
+  el.classList.toggle('vbg', on);
+  if (!on) return;
+  const W = innerWidth, H = innerHeight, k = Math.min(devicePixelRatio, 1.5);
+  if (bgc.width !== Math.round(W * k) || bgc.height !== Math.round(H * k)) {
+    bgc.width = handC.width = Math.round(W * k); bgc.height = handC.height = Math.round(H * k);
+    maskC.width = Math.round(W / 4); maskC.height = Math.round(H / 4);   // 저해상도 마스크 → 확대하면 가장자리가 부드러움
+  }
+  bctx.setTransform(k, 0, 0, k, 0, 0);
+  bctx.drawImage(travelBg, ...coverRect(travelBg.naturalWidth, travelBg.naturalHeight, W, H));
+  if (!handPts || video.readyState < 2) return;
+  // 1) 손 모양 마스크: 손바닥 다각형 + 손가락 굵은 선 + 손목
+  const P = handPts, pw = Math.hypot(P[5].x - P[17].x, P[5].y - P[17].y);
+  mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.clearRect(0, 0, maskC.width, maskC.height);
+  mctx.setTransform(0.25, 0, 0, 0.25, 0, 0);
+  mctx.fillStyle = mctx.strokeStyle = '#fff'; mctx.lineCap = mctx.lineJoin = 'round';
+  mctx.beginPath(); [0, 1, 2, 5, 9, 13, 17].forEach((i, j) => j ? mctx.lineTo(P[i].x, P[i].y) : mctx.moveTo(P[i].x, P[i].y)); mctx.closePath(); mctx.fill();
+  mctx.lineWidth = pw * 0.42; mctx.stroke();
+  const chain = (ids, w) => { mctx.lineWidth = w; mctx.beginPath(); ids.forEach((i, j) => j ? mctx.lineTo(P[i].x, P[i].y) : mctx.moveTo(P[i].x, P[i].y)); mctx.stroke(); };
+  chain([1, 2, 3, 4], pw * 0.36);
+  [[5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]].forEach(c => chain(c, pw * 0.3));
+  const dx = P[0].x - P[9].x, dy = P[0].y - P[9].y, dl = Math.hypot(dx, dy) || 1;   // 손목 → 팔 방향으로 연장
+  mctx.lineWidth = pw * 0.95; mctx.beginPath(); mctx.moveTo(P[0].x, P[0].y); mctx.lineTo(P[0].x + dx / dl * pw * 3, P[0].y + dy / dl * pw * 3); mctx.stroke();
+  // 2) 카메라 영상을 그리고 마스크 모양만 남기기
+  hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.globalCompositeOperation = 'source-over'; hctx.clearRect(0, 0, handC.width, handC.height);
+  hctx.setTransform(k, 0, 0, k, 0, 0);
+  if (facing === 'user') { hctx.translate(W, 0); hctx.scale(-1, 1); }
+  hctx.drawImage(video, ...coverRect(video.videoWidth, video.videoHeight, W, H));
+  hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.globalCompositeOperation = 'destination-in';
+  hctx.imageSmoothingEnabled = true; hctx.drawImage(maskC, 0, 0, handC.width, handC.height);
+  hctx.globalCompositeOperation = 'source-over';
+  // 3) 사진 위에 손 합성
+  bctx.setTransform(1, 0, 0, 1, 0, 0); bctx.drawImage(handC, 0, 0);
+}
+
 function loop() {
   raf = requestAnimationFrame(loop);
   if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
@@ -399,6 +452,7 @@ function loop() {
     const r = landmarker.detectForVideo(video, performance.now());
     if (r.landmarks && r.landmarks.length) {
       const t = pose(r.landmarks[0], r.worldLandmarks[0]);
+      handPts = t.P;
       const k = haveFix ? 0.4 : 1;
       cur.x += (t.x - cur.x) * k; cur.y += (t.y - cur.y) * k; cur.s += (t.scale - cur.s) * (haveFix ? 0.25 : 1); cur.roll += (t.roll - cur.roll) * (haveFix ? 0.2 : 1);
       haveFix = true;
@@ -416,6 +470,7 @@ function loop() {
       cardRoot.visible = true; lostAt = 0; setHint('');
       if (deskOn) { deskOn = false; anchor = null; deskRoot.visible = false; }
     } else {
+      handPts = null;
       if (!lostAt) lostAt = performance.now();
       if (performance.now() - lostAt > 400) {
         cardRoot.visible = false; if (shadow) shadow.visible = false; haveFix = false;
@@ -439,6 +494,7 @@ function loop() {
   } else if (autoSpin && dragX === null) yawTarget += 0.018;
   yaw += (yawTarget - yaw) * 0.25;
   if (cardMesh) cardMesh.rotation.y = yaw;   // 카드 세로축 기준 회전
+  drawVirtualBg();
   updateDeskCam();
   if (deskOn) {
     // 책상 위에서는 자동으로 돌지 않고, 탭하면 살짝 들렸다가 뒤집힘
