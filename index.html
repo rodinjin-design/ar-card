@@ -78,6 +78,8 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 #touch span{display:block;animation:bob 1.4s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(-6px)}}
 @media (prefers-reduced-motion:reduce){#touch span{animation:none}}
+#x{position:absolute;top:calc(env(safe-area-inset-top) + 12px);right:16px;z-index:3;width:46px;height:46px;padding:0;display:grid;place-items:center}
+#x svg{width:18px;height:18px}
 #hint small{display:block;margin-top:4px;font-weight:500;font-size:13px;opacity:.85}
 @media (prefers-reduced-motion:reduce){#hint{transition:none}}
 </style>
@@ -121,6 +123,7 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 <section id="hand" aria-label="손 위 카드 보기">
   <video id="cam" playsinline muted autoplay></video>
   <canvas id="gl"></canvas>
+  <button class="pill" id="x" aria-label="닫기"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 3l12 12M15 3L3 15"/></svg></button>
   <p id="touch"><span>Touch!</span></p>
   <p id="hint">카메라를 준비하고 있어요…</p>
   <div class="hbar bot">
@@ -195,8 +198,8 @@ const CARD_SCALE = 1.1;                 // 손 위 카드 크기: 실물보다 1
 let spinAnim = null;
 // 책상 모드: 손이 없고 폰이 아래를 향하면 카드를 책상 위에 눕혀 놓음 (기기 방향 센서 기반 3DOF)
 let deskScene, deskCam, deskRoot, deskSpin, deskHolder, deskOn = false, anchor = null, orient = null, motionAsked = false;
-const CAM_H = 0.15;                     // 폰과 책상 사이 가정 높이(m) — 낮을수록 카드가 크게 보임
-const DESK_SCALE = 1.2;                 // 책상 위 카드 추가 확대
+const CAM_H = 0.2;                      // 폰과 책상 사이 가정 높이(m) — 낮을수록 카드가 크게 보임
+const DESK_SCALE = 1.1;                 // 책상 위 카드 추가 확대
 const flip = { angle: 0, from: 0, to: 0, t: 1 }; // 책상 카드 뒤집기                     // 탭하면 한 바퀴 도는 애니메이션
 let fxOn = true;
 let yaw = 0, yawTarget = 0, autoSpin = true, dragX = null, shadow;
@@ -472,6 +475,7 @@ document.getElementById('handBtn').addEventListener('click', openHand);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 if (standalone) document.getElementById('install').hidden = true;
 if (location.hash === '#hand') openHand();
+document.getElementById('x').addEventListener('click', closeHand);
 document.getElementById('handCard').addEventListener('click', () => pick(card === 'snack' ? 'travel' : 'snack'));
 // 화면을 좌우로 밀어서 회전
 let dragStart = 0;
