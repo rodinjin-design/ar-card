@@ -424,7 +424,9 @@ const TRAVEL_BGS = ['bg/travel1.jpg', 'bg/travel2.jpg', 'bg/travel3.jpg', 'bg/tr
 const travelBg = new Image();
 travelBg.src = TRAVEL_BGS[Math.floor(Math.random() * TRAVEL_BGS.length)];
 const bgc = document.getElementById('bgc'), bctx = bgc.getContext('2d');
-const maskC = document.createElement('canvas'), mctx = maskC.getContext('2d');
+const maskC = document.createElement('canvas'), mctx = maskC.getContext('2d', { willReadFrequently: true });
+const armC = document.createElement('canvas'), actx = armC.getContext('2d', { willReadFrequently: true });
+const vidC = document.createElement('canvas'), vctx = vidC.getContext('2d', { willReadFrequently: true });
 const handC = document.createElement('canvas'), hctx = handC.getContext('2d');
 let handPts = null;
 
@@ -438,23 +440,53 @@ function drawVirtualBg() {
   const W = innerWidth, H = innerHeight, k = Math.min(devicePixelRatio, 1.5);
   if (bgc.width !== Math.round(W * k) || bgc.height !== Math.round(H * k)) {
     bgc.width = handC.width = Math.round(W * k); bgc.height = handC.height = Math.round(H * k);
-    maskC.width = Math.round(W / 4); maskC.height = Math.round(H / 4);   // 저해상도 마스크 → 확대하면 가장자리가 부드러움
+    maskC.width = armC.width = vidC.width = Math.round(W / 2); maskC.height = armC.height = vidC.height = Math.round(H / 2);   // 절반 해상도 마스크 → 확대하면 가장자리가 부드러움
   }
   bctx.setTransform(k, 0, 0, k, 0, 0);
   bctx.drawImage(travelBg, ...coverRect(travelBg.naturalWidth, travelBg.naturalHeight, W, H));
   if (!handPts || video.readyState < 2) return;
-  // 1) 손 모양 마스크: 손바닥 다각형 + 손가락 굵은 선 + 손목
+  // 1) 손 모양 마스크(관절 기반) + 피부색으로 다듬기
   const P = handPts, pw = Math.hypot(P[5].x - P[17].x, P[5].y - P[17].y);
-  mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.clearRect(0, 0, maskC.width, maskC.height);
-  mctx.setTransform(0.25, 0, 0, 0.25, 0, 0);
-  mctx.fillStyle = mctx.strokeStyle = '#fff'; mctx.lineCap = mctx.lineJoin = 'round';
-  mctx.beginPath(); [0, 1, 2, 5, 9, 13, 17].forEach((i, j) => j ? mctx.lineTo(P[i].x, P[i].y) : mctx.moveTo(P[i].x, P[i].y)); mctx.closePath(); mctx.fill();
-  mctx.lineWidth = pw * 0.42; mctx.stroke();
-  const chain = (ids, w) => { mctx.lineWidth = w; mctx.beginPath(); ids.forEach((i, j) => j ? mctx.lineTo(P[i].x, P[i].y) : mctx.moveTo(P[i].x, P[i].y)); mctx.stroke(); };
-  chain([1, 2, 3, 4], pw * 0.36);
-  [[5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]].forEach(c => chain(c, pw * 0.3));
-  const dx = P[0].x - P[9].x, dy = P[0].y - P[9].y, dl = Math.hypot(dx, dy) || 1;   // 손목 → 팔 방향으로 연장
-  mctx.lineWidth = pw * 0.95; mctx.beginPath(); mctx.moveTo(P[0].x, P[0].y); mctx.lineTo(P[0].x + dx / dl * pw * 3, P[0].y + dy / dl * pw * 3); mctx.stroke();
+  const mw = maskC.width, mh = maskC.height, ms = mw / W;
+  const shape = (c, armOnly) => {
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, mw, mh); c.setTransform(ms, 0, 0, ms, 0, 0);
+    c.fillStyle = c.strokeStyle = '#fff'; c.lineCap = c.lineJoin = 'round';
+    if (armOnly) {   // 손목 → 팔 (옷소매 포함, 피부색 보정 안 함)
+      const dx = P[0].x - P[9].x, dy = P[0].y - P[9].y, dl = Math.hypot(dx, dy) || 1;
+      c.lineWidth = pw * 0.8; c.beginPath(); c.moveTo(P[0].x - dx / dl * pw * 0.15, P[0].y - dy / dl * pw * 0.15); c.lineTo(P[0].x + dx / dl * pw * 3, P[0].y + dy / dl * pw * 3); c.stroke();
+      return;
+    }
+    c.beginPath(); [0, 1, 2, 5, 9, 13, 17].forEach((i, j) => j ? c.lineTo(P[i].x, P[i].y) : c.moveTo(P[i].x, P[i].y)); c.closePath(); c.fill();
+    c.lineWidth = pw * 0.36; c.stroke();
+    const chain = (ids, w) => { c.lineWidth = w; c.beginPath(); ids.forEach((i, j) => j ? c.lineTo(P[i].x, P[i].y) : c.moveTo(P[i].x, P[i].y)); c.stroke(); };
+    chain([1, 2, 3, 4], pw * 0.34);
+    [[5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]].forEach(f => chain(f, pw * 0.3));
+  };
+  shape(mctx, false); const hm = mctx.getImageData(0, 0, mw, mh);
+  shape(actx, true); const am = actx.getImageData(0, 0, mw, mh).data;
+  // 저해상도 영상에서 손바닥 가운데 피부색(Cb, Cr) 추출
+  vctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (facing === 'user') { vctx.translate(mw, 0); vctx.scale(-1, 1); }
+  vctx.drawImage(video, ...coverRect(video.videoWidth, video.videoHeight, mw, mh));
+  const vd = vctx.getImageData(0, 0, mw, mh).data, md = hm.data;
+  const cx = (P[0].x + P[5].x + P[9].x + P[13].x + P[17].x) / 5 * ms, cy = (P[0].y + P[5].y + P[9].y + P[13].y + P[17].y) / 5 * ms;
+  const rr = Math.max(2, pw * 0.14 * ms);
+  let sb = 0, sr = 0, n = 0;
+  for (let y = Math.max(0, cy - rr | 0); y < Math.min(mh, cy + rr); y++) for (let x = Math.max(0, cx - rr | 0); x < Math.min(mw, cx + rr); x++) {
+    const i = (y * mw + x) * 4, R = vd[i], G = vd[i + 1], B = vd[i + 2];
+    sb += -0.1687 * R - 0.3313 * G + 0.5 * B; sr += 0.5 * R - 0.4187 * G - 0.0813 * B; n++;
+  }
+  const cb0 = sb / n, cr0 = sr / n;
+  for (let i = 0; i < md.length; i += 4) {
+    let a = md[i + 3];
+    if (a) {   // 손 모양 안에서 피부색과 많이 다른 픽셀(벽·배경)은 빼기
+      const R = vd[i], G = vd[i + 1], B = vd[i + 2];
+      const d = Math.hypot(-0.1687 * R - 0.3313 * G + 0.5 * B - cb0, 0.5 * R - 0.4187 * G - 0.0813 * B - cr0);
+      a = a * Math.max(0, Math.min(1, (26 - d) / 12));
+    }
+    md[i + 3] = Math.max(a, am[i + 3]); md[i] = md[i + 1] = md[i + 2] = 255;
+  }
+  mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.putImageData(hm, 0, 0);
   // 2) 카메라 영상을 그리고 마스크 모양만 남기기
   hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.globalCompositeOperation = 'source-over'; hctx.clearRect(0, 0, handC.width, handC.height);
   hctx.setTransform(k, 0, 0, k, 0, 0);
