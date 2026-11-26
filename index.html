@@ -195,7 +195,9 @@ const CARD_SCALE = 1.1;                 // 손 위 카드 크기: 실물보다 1
 let spinAnim = null;
 // 책상 모드: 손이 없고 폰이 아래를 향하면 카드를 책상 위에 눕혀 놓음 (기기 방향 센서 기반 3DOF)
 let deskScene, deskCam, deskRoot, deskSpin, deskHolder, deskOn = false, anchor = null, orient = null, motionAsked = false;
-const CAM_H = 0.25;                     // 폰과 책상 사이 가정 높이(m)                     // 탭하면 한 바퀴 도는 애니메이션
+const CAM_H = 0.15;                     // 폰과 책상 사이 가정 높이(m) — 낮을수록 카드가 크게 보임
+const DESK_SCALE = 1.2;                 // 책상 위 카드 추가 확대
+const flip = { angle: 0, from: 0, to: 0, t: 1 }; // 책상 카드 뒤집기                     // 탭하면 한 바퀴 도는 애니메이션
 let fxOn = true;
 let yaw = 0, yawTarget = 0, autoSpin = true, dragX = null, shadow;
 let THREE, renderer, scene, camera, cardRoot, cardMesh, landmarker, stream, facing = 'environment', raf = 0, lastVideoTime = -1, lostAt = 0, haveFix = false;
@@ -234,7 +236,7 @@ async function setup() {
   ds.rotation.x = -Math.PI / 2; ds.position.y = 0.0003; deskRoot.add(ds);
   deskSpin = new THREE.Group(); deskRoot.add(deskSpin);
   deskHolder = new THREE.Group(); deskHolder.rotation.x = -Math.PI / 2; deskHolder.position.y = 0.0015; deskSpin.add(deskHolder);
-  deskRoot.scale.setScalar(CARD_SCALE);
+  deskRoot.scale.setScalar(CARD_SCALE * DESK_SCALE);
   renderer.autoClear = false;
   hand.loader = new GLTFLoader();
   const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
@@ -419,12 +421,19 @@ function loop() {
   if (cardMesh) cardMesh.rotation.y = yaw;   // 카드 세로축 기준 회전
   updateDeskCam();
   if (deskOn) {
-    deskSpin.rotation.y = yaw;                 // 책상 위에서는 바닥에 누운 채 빙글
+    // 책상 위에서는 자동으로 돌지 않고, 탭하면 살짝 들렸다가 뒤집힘
+    if (flip.t < 1) {
+      flip.t = Math.min(1, flip.t + dt / 0.75);
+      const e = flip.t < 0.5 ? 4 * flip.t ** 3 : 1 - (-2 * flip.t + 2) ** 3 / 2;
+      flip.angle = flip.from + (flip.to - flip.from) * e;
+      deskHolder.position.y = 0.0015 + Math.sin(flip.t * Math.PI) * 0.035;
+    }
+    if (deskHolder.children[0]) deskHolder.children[0].rotation.y = flip.angle;
     const W = innerWidth, H = innerHeight;
     const proj = v => { const p = v.clone().project(deskCam); return { x: (p.x + 1) / 2 * W, y: (1 - p.y) / 2 * H }; };
     const c = proj(anchor), side = proj(anchor.clone().add(new THREE.Vector3(1, 0, 0).applyQuaternion(deskCam.quaternion).multiplyScalar(0.05)));
     const ppm = Math.hypot(side.x - c.x, side.y - c.y) / 0.05;   // 1m당 픽셀
-    cur.x = c.x; cur.s = ppm; cur.roll = 0; cur.y = -c.y - 0.0428 * ppm * CARD_SCALE;  // 이모지 터지는 중심 = 카드 중심
+    cur.x = c.x; cur.s = ppm * DESK_SCALE; cur.roll = 0; cur.y = -c.y - 0.0428 * cur.s * CARD_SCALE;  // 이모지 터지는 중심 = 카드 중심
     const top = proj(anchor.clone().add(new THREE.Vector3(0, 0.06, 0)));
     touchEl.style.transform = `translate(${top.x}px, ${top.y - 10}px) translate(-50%, -100%)`;
     touchEl.style.opacity = 1;
@@ -474,7 +483,8 @@ const endDrag = e => {
   const tap = performance.now() - downAt < 350 && Math.hypot(e.clientX - downX, e.clientY - downY) < 12;
   const dy = e.clientY - downY, dx = e.clientX - downX;
   if (dy > 140 && Math.abs(dx) < 90) { dragX = null; yawTarget = dragStart; closeHand(); return; }  // 아래로 쓸어내려 닫기
-  if (tap && cardRoot && (cardRoot.visible || deskOn)) { yawTarget = yaw; spinAnim = { from: yaw, to: yaw + Math.PI * 2, t: 0 }; burst(); }  // 탭: 한 바퀴 돌기
+  if (tap && deskOn) { flip.from = flip.angle; flip.to = Math.round(flip.angle / Math.PI) * Math.PI + Math.PI; flip.t = 0; burst(); }  // 책상: 뒤집기
+  else if (tap && cardRoot && cardRoot.visible) { yawTarget = yaw; spinAnim = { from: yaw, to: yaw + Math.PI * 2, t: 0 }; burst(); }  // 탭: 한 바퀴 돌기
   else if (Math.abs(yawTarget - dragStart) > 0.6) burst();
   dragX = null;
 };
