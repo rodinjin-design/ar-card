@@ -79,7 +79,21 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 #hand.mirror video{transform:scaleX(-1)}
 .hbar{position:absolute;left:0;right:0;display:flex;justify-content:space-between;gap:10px;padding:14px 16px;z-index:2}
 .hbar.top{top:env(safe-area-inset-top)}
-.hbar.bot{bottom:calc(env(safe-area-inset-bottom) + 8px);justify-content:center;flex-wrap:wrap}
+.hbar.bot{bottom:calc(env(safe-area-inset-bottom) + 10px);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}
+#thumb{justify-self:start;width:54px;height:54px;padding:0;border-radius:14px;overflow:hidden;border:2px solid rgba(255,255,255,.9);background:#000;box-shadow:0 6px 18px rgba(0,0,0,.3);cursor:pointer}
+#thumb[hidden]{display:block;visibility:hidden}
+#thumb img{width:100%;height:100%;object-fit:cover;display:block}
+#shutter{grid-column:2;width:78px;height:78px;padding:5px;border-radius:50%;border:4px solid rgba(255,255,255,.92);background:rgba(255,255,255,.08);box-shadow:0 6px 22px rgba(0,0,0,.28);cursor:pointer;display:grid;place-items:center}
+#shutter span{display:block;width:100%;height:100%;border-radius:50%;background:#fff;transition:transform .12s}
+#shutter:active span{transform:scale(.88)}
+#handCard{justify-self:end;grid-column:3;padding:0 16px}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}
+#flash.go{animation:flash .45s ease-out}
+@keyframes flash{0%{opacity:.85}100%{opacity:0}}
+#pv{position:absolute;inset:0;z-index:6;background:rgba(8,10,16,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:calc(env(safe-area-inset-top) + 20px) 24px calc(env(safe-area-inset-bottom) + 20px)}
+#pv[hidden]{display:none}
+#pv img{max-width:100%;max-height:70vh;border-radius:18px;-webkit-touch-callout:default}
+#pv p{margin:0;color:#fff;font-size:15px}
 .pill[aria-pressed=true]{background:linear-gradient(180deg,rgba(120,240,220,.45),rgba(63,198,176,.22));border-color:rgba(160,255,235,.6)}
 .pill{min-height:46px;padding:0 20px;border-radius:999px;color:#0c1320;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer;background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.5));border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 #fff,inset 0 -1px 0 rgba(255,255,255,.4),0 8px 24px rgba(0,0,0,.16);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);transition:transform .15s,background .2s}
 .pill:active{transform:scale(.95)}
@@ -145,7 +159,15 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
   <p id="touch"><span>Touch!</span></p>
   <p id="hint">카메라를 준비하고 있어요…</p>
   <div class="hbar bot">
+    <button id="thumb" aria-label="방금 찍은 사진 저장" hidden><img alt=""></button>
+    <button id="shutter" aria-label="사진 찍기"><span></span></button>
     <button class="pill" id="handCard">카드 바꾸기</button>
+  </div>
+  <div id="flash"></div>
+  <div id="pv" hidden>
+    <img alt="찍은 사진">
+    <p>사진을 길게 눌러 <b>사진 앱에 저장</b>하세요</p>
+    <button class="pill" id="pvClose">닫기</button>
   </div>
 </section>
 
@@ -445,6 +467,63 @@ function drawVirtualBg() {
   bctx.setTransform(1, 0, 0, 1, 0, 0); bctx.drawImage(handC, 0, 0);
 }
 
+// ---------- 셔터: AR 화면을 사진으로 저장 ----------
+const shutter = document.getElementById('shutter'), thumb = document.getElementById('thumb');
+const flashEl = document.getElementById('flash'), pv = document.getElementById('pv');
+let lastShot = null;
+
+function captureFrame() {
+  const W = innerWidth, H = innerHeight, k = Math.min(devicePixelRatio, 2);
+  const c = document.createElement('canvas'); c.width = Math.round(W * k); c.height = Math.round(H * k);
+  const x = c.getContext('2d'); x.scale(k, k);
+  // 3D 화면을 지금 다시 그려서 바로 읽음
+  drawVirtualBg();
+  renderer.clear(); if (deskOn) renderer.render(deskScene, deskCam); renderer.clearDepth(); renderer.render(scene, camera);
+  // 배경: 여행 사진 합성 화면 또는 카메라 영상
+  if (el.classList.contains('vbg')) x.drawImage(bgc, 0, 0, W, H);
+  else if (video.videoWidth) {
+    x.save(); if (facing === 'user') { x.translate(W, 0); x.scale(-1, 1); }
+    x.drawImage(video, ...coverRect(video.videoWidth, video.videoHeight, W, H)); x.restore();
+  }
+  // 화면과 같은 톤: 살짝 어둡게 + 위쪽 빛 + 가장자리 어둡게
+  x.fillStyle = 'rgba(10,14,24,.24)'; x.fillRect(0, 0, W, H);
+  const wash = x.createRadialGradient(W / 2, -H * 0.05, 0, W / 2, -H * 0.05, H * 0.7);
+  wash.addColorStop(0, card === 'travel' ? 'rgba(255,206,150,.28)' : 'rgba(225,238,255,.22)'); wash.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = wash; x.fillRect(0, 0, W, H);
+  const vg = x.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.35, W / 2, H * 0.55, Math.max(W, H) * 0.75);
+  vg.addColorStop(0, 'rgba(10,14,24,0)'); vg.addColorStop(1, 'rgba(10,14,24,.5)');
+  x.fillStyle = vg; x.fillRect(0, 0, W, H);
+  // 카드·이모지
+  x.drawImage(canvas, 0, 0, W, H);
+  return c;
+}
+
+function dataUrlToFile(url) {
+  const bin = atob(url.split(',')[1]), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([arr], `ar-card-${Date.now()}.jpg`, { type: 'image/jpeg' });
+}
+
+function saveShot(shot) {
+  // iPhone은 공유 시트의 '이미지 저장'으로 사진 앱에 저장, 안 되면 미리보기에서 길게 눌러 저장
+  if (navigator.canShare && navigator.canShare({ files: [shot.file] })) navigator.share({ files: [shot.file] }).catch(() => {});
+  else { pv.querySelector('img').src = shot.url; pv.hidden = false; }
+}
+
+shutter.addEventListener('click', () => {
+  if (!renderer) return;
+  haptic();
+  flashEl.classList.remove('go'); void flashEl.offsetWidth; flashEl.classList.add('go');
+  try {
+    const url = captureFrame().toDataURL('image/jpeg', 0.92);
+    lastShot = { url, file: dataUrlToFile(url) };
+    thumb.querySelector('img').src = url; thumb.hidden = false;
+    saveShot(lastShot);
+  } catch (e) { console.error(e); setHint('사진을 저장하지 못했어요.'); }
+});
+thumb.addEventListener('click', () => { if (lastShot) saveShot(lastShot); });
+document.getElementById('pvClose').addEventListener('click', () => { pv.hidden = true; });
+
 function loop() {
   raf = requestAnimationFrame(loop);
   if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
@@ -539,7 +618,7 @@ async function openHand() {
 }
 function closeHand() {
   hand.active = false; el.classList.remove('on'); cancelAnimationFrame(raf);
-  scrollToCard(card, false); touchEl.style.opacity = 0;
+  scrollToCard(card, false); touchEl.style.opacity = 0; pv.hidden = true;
   if (stream) stream.getTracks().forEach(t => t.stop()); stream = null;
   if (cardRoot) cardRoot.visible = false; haveFix = false;
   deskOn = false; anchor = null; if (deskRoot) deskRoot.visible = false;
@@ -553,7 +632,7 @@ document.getElementById('handCard').addEventListener('click', () => haptic() || 
 // 화면을 좌우로 밀어서 회전
 let dragStart = 0;
 let downAt = 0, downX = 0, downY = 0;
-el.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; spinAnim = null; dragX = e.clientX; dragStart = yawTarget; downAt = performance.now(); downX = e.clientX; downY = e.clientY; el.setPointerCapture(e.pointerId); });
+el.addEventListener('pointerdown', e => { if (e.target.closest('button') || !pv.hidden) return; spinAnim = null; dragX = e.clientX; dragStart = yawTarget; downAt = performance.now(); downX = e.clientX; downY = e.clientY; el.setPointerCapture(e.pointerId); });
 el.addEventListener('pointermove', e => { if (dragX === null) return; yawTarget += (e.clientX - dragX) * 0.012; dragX = e.clientX; });
 const endDrag = e => {
   if (dragX === null) return;
