@@ -194,6 +194,7 @@ const setActive = name => {
   chips.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.card === name)));
   const i = cardsEl.findIndex(c => c.dataset.card === name);
   dots.forEach((d, j) => d.classList.toggle('on', j === i));
+  document.getElementById('handBtn').textContent = name === 'travel' ? '세계여행하기' : '손 위에 올려보기';
 };
 const scrollToCard = (name, smooth = true) => {
   const c = cardsEl.find(c => c.dataset.card === name);
@@ -571,7 +572,7 @@ function placeTravelCard() {
   if (deskOn) { deskOn = false; anchor = null; deskRoot.visible = false; }
   if (shadow) shadow.visible = false;
   const W = innerWidth, H = innerHeight;
-  const s0 = Math.min(H * 0.5, W * 0.78 / 0.631) / (0.0856 * CARD_SCALE);   // 카드 높이 = 화면의 약 50%
+  const s0 = Math.min(H * 0.5, W * 0.78 / 0.631) * 0.85 / (0.0856 * CARD_SCALE);   // 카드 높이 = 화면의 약 42%
   const bob = Math.sin(performance.now() / 900) * 5;                      // 살짝 둥실
   const cy = -(H * 0.47) + bob;
   cur.x = W / 2; cur.s = s0; cur.roll = 0; cur.y = cy - 0.0428 * s0 * CARD_SCALE;
