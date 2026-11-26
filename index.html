@@ -79,14 +79,19 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 #hand.mirror video{transform:scaleX(-1)}
 .hbar{position:absolute;left:0;right:0;display:flex;justify-content:space-between;gap:10px;padding:14px 16px;z-index:2}
 .hbar.top{top:env(safe-area-inset-top)}
-.hbar.bot{bottom:calc(env(safe-area-inset-bottom) + 10px);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}
+.hbar.bot{bottom:calc(env(safe-area-inset-bottom) + 10px);display:grid;grid-template-columns:1fr 46px auto 46px 1fr;align-items:center;gap:14px}
+#reBg{grid-column:2;width:46px;height:46px;padding:0;display:grid;place-items:center}
+#reBg svg{width:20px;height:20px}
+#hand:not([data-tone=travel]) #reBg{visibility:hidden}
+.sp{grid-column:4}
 #thumb{justify-self:start;width:54px;height:54px;padding:0;border-radius:14px;overflow:hidden;border:2px solid rgba(255,255,255,.9);background:#000;box-shadow:0 6px 18px rgba(0,0,0,.3);cursor:pointer}
 #thumb[hidden]{display:block;visibility:hidden}
 #thumb img{width:100%;height:100%;object-fit:cover;display:block}
-#shutter{grid-column:2;width:78px;height:78px;padding:5px;border-radius:50%;border:4px solid rgba(255,255,255,.92);background:rgba(255,255,255,.08);box-shadow:0 6px 22px rgba(0,0,0,.28);cursor:pointer;display:grid;place-items:center}
+#shutter{grid-column:3;width:78px;height:78px;padding:5px;border-radius:50%;border:4px solid rgba(255,255,255,.92);background:rgba(255,255,255,.08);box-shadow:0 6px 22px rgba(0,0,0,.28);cursor:pointer;display:grid;place-items:center}
 #shutter span{display:block;width:100%;height:100%;border-radius:50%;background:#fff;transition:transform .12s}
 #shutter:active span{transform:scale(.88)}
-#handCard{justify-self:end;grid-column:3;padding:0 16px}
+#handCard{justify-self:end;grid-column:4 / 6;padding:0 14px}
+#thumb{grid-column:1}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}
 #flash.go{animation:flash .45s ease-out}
 @keyframes flash{0%{opacity:.85}100%{opacity:0}}
@@ -160,7 +165,9 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
   <p id="hint">카메라를 준비하고 있어요…</p>
   <div class="hbar bot">
     <button id="thumb" aria-label="방금 찍은 사진 저장" hidden><img alt=""></button>
+    <button class="pill" id="reBg" aria-label="배경 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
     <button id="shutter" aria-label="사진 찍기"><span></span></button>
+    <span class="sp" aria-hidden="true"></span>
     <button class="pill" id="handCard">카드 바꾸기</button>
   </div>
   <div id="flash"></div>
@@ -444,7 +451,7 @@ function drawVirtualBg() {
   }
   bctx.setTransform(k, 0, 0, k, 0, 0);
   bctx.drawImage(travelBg, ...coverRect(travelBg.naturalWidth, travelBg.naturalHeight, W, H));
-  if (!handPts || video.readyState < 2) return;
+  if (card === 'travel' || !handPts || video.readyState < 2) return;   // Travel은 사진만
   // 1) 손 모양 마스크(관절 기반) + 피부색으로 다듬기
   const P = handPts, pw = Math.hypot(P[5].x - P[17].x, P[5].y - P[17].y);
   const mw = maskC.width, mh = maskC.height, ms = mw / W;
@@ -554,11 +561,39 @@ shutter.addEventListener('click', () => {
   } catch (e) { console.error(e); setHint('사진을 저장하지 못했어요.'); }
 });
 thumb.addEventListener('click', () => { if (lastShot) saveShot(lastShot); });
+document.getElementById('reBg').addEventListener('click', () => { haptic(); nextTravelBg(); });
 document.getElementById('pvClose').addEventListener('click', () => { pv.hidden = true; });
+
+// Travel: 손 없이 여행 사진 위 가운데에 카드를 정면으로 띄움. 탭하면 뒤집기만
+function placeTravelCard() {
+  handPts = null; haveFix = false; lostAt = 0;
+  if (!spinAnim) yawTarget = Math.round(yawTarget / Math.PI) * Math.PI;   // 정면(또는 뒷면)으로 맞춤
+  if (deskOn) { deskOn = false; anchor = null; deskRoot.visible = false; }
+  if (shadow) shadow.visible = false;
+  const W = innerWidth, H = innerHeight;
+  const s0 = Math.min(H * 0.5, W * 0.78 / 0.631) / (0.0856 * CARD_SCALE);   // 카드 높이 = 화면의 약 50%
+  const bob = Math.sin(performance.now() / 900) * 5;                      // 살짝 둥실
+  const cy = -(H * 0.47) + bob;
+  cur.x = W / 2; cur.s = s0; cur.roll = 0; cur.y = cy - 0.0428 * s0 * CARD_SCALE;
+  cardRoot.scale.setScalar(s0 * CARD_SCALE);
+  cardRoot.rotation.set(0, 0, 0);
+  cardRoot.position.set(W / 2, cy, 0);
+  cardRoot.visible = true; setHint('');
+  const half = 0.0428 * s0 * CARD_SCALE;
+  touchEl.style.transform = `translate(${W / 2}px, ${-cy - half - 18}px) translate(-50%, -100%)`;
+  touchEl.style.opacity = 1;
+}
+function nextTravelBg() {
+  const curIdx = TRAVEL_BGS.findIndex(u => travelBg.src.endsWith(u));
+  let i; do { i = Math.floor(Math.random() * TRAVEL_BGS.length); } while (i === curIdx && TRAVEL_BGS.length > 1);
+  travelBg.src = TRAVEL_BGS[i];
+}
 
 function loop() {
   raf = requestAnimationFrame(loop);
-  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+  const travel = card === 'travel';
+  if (travel) placeTravelCard();
+  else if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
     lastVideoTime = video.currentTime;
     const r = landmarker.detectForVideo(video, performance.now());
     if (r.landmarks && r.landmarks.length) {
@@ -602,7 +637,7 @@ function loop() {
     const e = 1 - Math.pow(1 - spinAnim.t, 3);
     yawTarget = spinAnim.from + (spinAnim.to - spinAnim.from) * e;
     if (spinAnim.t >= 1) spinAnim = null;
-  } else if (autoSpin && dragX === null) yawTarget += 0.018;
+  } else if (autoSpin && dragX === null && !travel) yawTarget += 0.018;
   yaw += (yawTarget - yaw) * 0.25;
   if (cardMesh) cardMesh.rotation.y = yaw;   // 카드 세로축 기준 회전
   drawVirtualBg();
@@ -665,12 +700,15 @@ document.getElementById('handCard').addEventListener('click', () => haptic() || 
 let dragStart = 0;
 let downAt = 0, downX = 0, downY = 0;
 el.addEventListener('pointerdown', e => { if (e.target.closest('button') || !pv.hidden) return; spinAnim = null; dragX = e.clientX; dragStart = yawTarget; downAt = performance.now(); downX = e.clientX; downY = e.clientY; el.setPointerCapture(e.pointerId); });
-el.addEventListener('pointermove', e => { if (dragX === null) return; yawTarget += (e.clientX - dragX) * 0.012; dragX = e.clientX; });
+el.addEventListener('pointermove', e => { if (dragX === null || card === 'travel') return; yawTarget += (e.clientX - dragX) * 0.012; dragX = e.clientX; });
 const endDrag = e => {
   if (dragX === null) return;
   const tap = performance.now() - downAt < 350 && Math.hypot(e.clientX - downX, e.clientY - downY) < 12;
   const dy = e.clientY - downY, dx = e.clientX - downX;
   if (dy > 140 && Math.abs(dx) < 90) { dragX = null; yawTarget = dragStart; closeHand(); return; }  // 아래로 쓸어내려 닫기
+  if (tap && card === 'travel' && cardRoot && cardRoot.visible) {   // Travel: 반 바퀴 뒤집기
+    haptic(); yawTarget = yaw; spinAnim = { from: yaw, to: Math.round(yaw / Math.PI) * Math.PI + Math.PI, t: 0 }; burst(); dragX = null; return;
+  }
   if (tap && (deskOn || (cardRoot && cardRoot.visible))) haptic();
   if (tap && deskOn) { flip.from = flip.angle; flip.to = Math.round(flip.angle / Math.PI) * Math.PI + Math.PI; flip.t = 0; burst(); }  // 책상: 뒤집기
   else if (tap && cardRoot && cardRoot.visible) { yawTarget = yaw; spinAnim = { from: yaw, to: yaw + Math.PI * 2, t: 0 }; burst(); }  // 탭: 한 바퀴 돌기
