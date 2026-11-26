@@ -192,7 +192,10 @@ const touchEl = document.getElementById('touch');
 const canvas = document.getElementById('gl');
 const cur = { x: 0, y: 0, s: 1, roll: 0 };
 const CARD_SCALE = 1.1;                 // 손 위 카드 크기: 실물보다 10% 크게
-let spinAnim = null;                     // 탭하면 한 바퀴 도는 애니메이션
+let spinAnim = null;
+// 책상 모드: 손이 없고 폰이 아래를 향하면 카드를 책상 위에 눕혀 놓음 (기기 방향 센서 기반 3DOF)
+let deskScene, deskCam, deskRoot, deskSpin, deskHolder, deskOn = false, anchor = null, orient = null, motionAsked = false;
+const CAM_H = 0.25;                     // 폰과 책상 사이 가정 높이(m)                     // 탭하면 한 바퀴 도는 애니메이션
 let fxOn = true;
 let yaw = 0, yawTarget = 0, autoSpin = true, dragX = null, shadow;
 let THREE, renderer, scene, camera, cardRoot, cardMesh, landmarker, stream, facing = 'environment', raf = 0, lastVideoTime = -1, lostAt = 0, haveFix = false;
@@ -222,6 +225,17 @@ async function setup() {
   rg.addColorStop(0, 'rgba(0,0,0,.45)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
   shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false }));
   shadow.visible = false; shadow.position.z = -5000; shadow.renderOrder = -1; shadow.material.depthTest = false; scene.add(shadow);
+  deskScene = new THREE.Scene(); deskScene.environment = scene.environment;
+  deskScene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 0.6));
+  const dl2 = new THREE.DirectionalLight(0xffffff, 1.1); dl2.position.set(0.4, 1, 0.3); deskScene.add(dl2);
+  deskCam = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.01, 20);
+  deskRoot = new THREE.Group(); deskRoot.visible = false; deskScene.add(deskRoot);
+  const ds = new THREE.Mesh(new THREE.PlaneGeometry(0.085, 0.12), new THREE.MeshBasicMaterial({ map: shadow.material.map, transparent: true, depthWrite: false }));
+  ds.rotation.x = -Math.PI / 2; ds.position.y = 0.0003; deskRoot.add(ds);
+  deskSpin = new THREE.Group(); deskRoot.add(deskSpin);
+  deskHolder = new THREE.Group(); deskHolder.rotation.x = -Math.PI / 2; deskHolder.position.y = 0.0015; deskSpin.add(deskHolder);
+  deskRoot.scale.setScalar(CARD_SCALE);
+  renderer.autoClear = false;
   hand.loader = new GLTFLoader();
   const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
   landmarker = await vision.HandLandmarker.createFromOptions(files, {
@@ -253,7 +267,7 @@ const parts = [];
 let fxGroup;
 
 function burst() {
-  if (!fxOn || !cardRoot || !cardRoot.visible) return;
+  if (!fxOn || !cardRoot || !(cardRoot.visible || deskOn)) return;
   if (!fxGroup) { fxGroup = new THREE.Group(); scene.add(fxGroup); }
   const list = EMOJI[card] || EMOJI.snack, n = 14;
   const k = Math.min(innerWidth, innerHeight) / 390;
@@ -291,7 +305,9 @@ function updateBurst(dt) {
 hand.load = name => new Promise((res, rej) => {
   const put = obj => {
     if (cardMesh) cardRoot.remove(cardMesh);
-    cardMesh = obj; cardRoot.add(obj); res();
+    cardMesh = obj; cardRoot.add(obj);
+    if (deskHolder) { deskHolder.clear(); deskHolder.add(obj.clone()); }
+    res();
   };
   if (loaded[name]) return put(loaded[name]);
   hand.loader.load(CARDS[name], g => {
@@ -304,6 +320,7 @@ function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
   Object.assign(camera, { left: 0, right: w, top: 0, bottom: -h }); camera.updateProjectionMatrix();
+  if (deskCam) { deskCam.aspect = w / h; deskCam.updateProjectionMatrix(); }
 }
 
 async function startCam() {
@@ -311,6 +328,22 @@ async function startCam() {
   stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
   video.srcObject = stream; await video.play();
   el.classList.toggle('mirror', facing === 'user');
+}
+
+// 기기 방향(deviceorientation) → 3D 카메라 회전 (세로 화면 기준)
+addEventListener('deviceorientation', e => { if (e.beta !== null) orient = { a: e.alpha || 0, b: e.beta, g: e.gamma || 0 }; });
+function askMotion() {                    // iOS는 버튼을 누른 순간에만 권한 요청 가능
+  if (motionAsked) return; motionAsked = true;
+  const D = window.DeviceOrientationEvent;
+  if (D && typeof D.requestPermission === 'function') D.requestPermission().catch(() => {});
+}
+function updateDeskCam() {
+  if (!orient || !deskCam) return false;
+  const d = Math.PI / 180;
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(orient.b * d, orient.a * d, -orient.g * d, 'YXZ'));
+  q.multiply(new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2));
+  deskCam.quaternion.slerp(q, 0.5);
+  return true;
 }
 
 // 영상 좌표(0~1) → 화면 픽셀 (object-fit: cover 보정)
@@ -359,9 +392,20 @@ function loop() {
       shadow.position.set(cur.x, cur.y, -500);
       shadow.scale.set(0.07 * cur.s, 0.022 * cur.s, 1);
       cardRoot.visible = true; lostAt = 0; setHint('');
+      if (deskOn) { deskOn = false; anchor = null; deskRoot.visible = false; }
     } else {
       if (!lostAt) lostAt = performance.now();
-      if (performance.now() - lostAt > 400) { cardRoot.visible = false; touchEl.style.opacity = 0; if (shadow) shadow.visible = false; haveFix = false; setHint('손바닥을 펴서 화면에 보여 주세요', '아래로 쓸어내리면 닫혀요'); }
+      if (performance.now() - lostAt > 400) {
+        cardRoot.visible = false; if (shadow) shadow.visible = false; haveFix = false;
+        const fwd = orient ? new THREE.Vector3(0, 0, -1).applyQuaternion(deskCam.quaternion) : null;
+        if (fwd && (fwd.y < -0.35 || (deskOn && fwd.y < -0.2))) {
+          if (!anchor) { const t = Math.min(0.8, CAM_H / -fwd.y); anchor = fwd.clone().multiplyScalar(t); }  // 화면 가운데가 닿는 책상 위 지점
+          deskOn = true; deskRoot.position.copy(anchor); deskRoot.visible = true; setHint('');
+        } else {
+          deskOn = false; anchor = null; deskRoot.visible = false; touchEl.style.opacity = 0;
+          setHint(orient ? '손바닥이나 책상을 비춰 주세요' : '손바닥을 펴서 화면에 보여 주세요', '아래로 쓸어내리면 닫혀요');
+        }
+      }
     }
   }
   const now = performance.now() / 1000, dt = Math.min(0.05, now - (loop.last || now)); loop.last = now;
@@ -373,11 +417,27 @@ function loop() {
   } else if (autoSpin && dragX === null) yawTarget += 0.018;
   yaw += (yawTarget - yaw) * 0.25;
   if (cardMesh) cardMesh.rotation.y = yaw;   // 카드 세로축 기준 회전
+  updateDeskCam();
+  if (deskOn) {
+    deskSpin.rotation.y = yaw;                 // 책상 위에서는 바닥에 누운 채 빙글
+    const W = innerWidth, H = innerHeight;
+    const proj = v => { const p = v.clone().project(deskCam); return { x: (p.x + 1) / 2 * W, y: (1 - p.y) / 2 * H }; };
+    const c = proj(anchor), side = proj(anchor.clone().add(new THREE.Vector3(1, 0, 0).applyQuaternion(deskCam.quaternion).multiplyScalar(0.05)));
+    const ppm = Math.hypot(side.x - c.x, side.y - c.y) / 0.05;   // 1m당 픽셀
+    cur.x = c.x; cur.s = ppm; cur.roll = 0; cur.y = -c.y - 0.0428 * ppm * CARD_SCALE;  // 이모지 터지는 중심 = 카드 중심
+    const top = proj(anchor.clone().add(new THREE.Vector3(0, 0.06, 0)));
+    touchEl.style.transform = `translate(${top.x}px, ${top.y - 10}px) translate(-50%, -100%)`;
+    touchEl.style.opacity = 1;
+  }
   updateBurst(dt);
+  renderer.clear();
+  if (deskOn) renderer.render(deskScene, deskCam);
+  renderer.clearDepth();
   renderer.render(scene, camera);
 }
 
 async function openHand() {
+  askMotion();
   el.classList.add('on'); hand.active = true; setHint('카메라를 준비하고 있어요…');
   try {
     if (!landmarker) { setHint('손 인식 모델을 불러오고 있어요… (처음 한 번)'); await setup(); }
@@ -385,7 +445,7 @@ async function openHand() {
     await hand.load(card);
     Object.keys(CARDS).forEach(n => { if (!loaded[n]) hand.loader.load(CARDS[n], g => { const o = new THREE.Group(); g.scene.position.y = -0.0428; o.add(g.scene); loaded[n] = o; }); }); // 다른 카드 미리 로드
     await startCam();
-    setHint('손바닥을 펴서 화면에 보여 주세요', '아래로 쓸어내리면 닫혀요');
+    setHint('손바닥이나 책상을 비춰 주세요', '아래로 쓸어내리면 닫혀요');
     cancelAnimationFrame(raf); loop();
   } catch (e) {
     console.error(e);
@@ -397,6 +457,7 @@ function closeHand() {
   scrollToCard(card, false); touchEl.style.opacity = 0;
   if (stream) stream.getTracks().forEach(t => t.stop()); stream = null;
   if (cardRoot) cardRoot.visible = false; haveFix = false;
+  deskOn = false; anchor = null; if (deskRoot) deskRoot.visible = false;
 }
 document.getElementById('handBtn').addEventListener('click', openHand);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -413,7 +474,7 @@ const endDrag = e => {
   const tap = performance.now() - downAt < 350 && Math.hypot(e.clientX - downX, e.clientY - downY) < 12;
   const dy = e.clientY - downY, dx = e.clientX - downX;
   if (dy > 140 && Math.abs(dx) < 90) { dragX = null; yawTarget = dragStart; closeHand(); return; }  // 아래로 쓸어내려 닫기
-  if (tap && cardRoot && cardRoot.visible) { yawTarget = yaw; spinAnim = { from: yaw, to: yaw + Math.PI * 2, t: 0 }; burst(); }  // 탭: 한 바퀴 돌기
+  if (tap && cardRoot && (cardRoot.visible || deskOn)) { yawTarget = yaw; spinAnim = { from: yaw, to: yaw + Math.PI * 2, t: 0 }; burst(); }  // 탭: 한 바퀴 돌기
   else if (Math.abs(yawTarget - dragStart) > 0.6) burst();
   dragX = null;
 };
