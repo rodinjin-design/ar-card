@@ -67,12 +67,12 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 #hand.vbg #bgc{display:block}
 #hand.vbg video{opacity:0}
 /* 카메라 톤: Snack은 맑고 화사하게, Travel은 햇살 같은 따뜻한 톤 */
-#hand{--vf:brightness(.8) contrast(1.04) saturate(1.05);--wash:rgba(225,238,255,.5)}
-#hand[data-tone=travel]{--vf:brightness(.8) contrast(1.04) saturate(1.15) sepia(.14) hue-rotate(-8deg);--wash:rgba(255,206,150,.55)}
+#hand{--vf:brightness(.86) contrast(1.08) saturate(1.2) sepia(.06);--wash:rgba(255,190,160,.6);--wash2:rgba(160,150,255,.4)}
+#hand[data-tone=travel]{--vf:brightness(.86) contrast(1.08) saturate(1.2) sepia(.06);--wash:rgba(255,200,150,.55);--wash2:rgba(150,170,255,.3)}
 #tone,#grain{position:absolute;inset:0;pointer-events:none}
 #tone::before,#tone::after{content:"";position:absolute;inset:0}
-#tone::before{background:radial-gradient(130% 65% at 50% -5%,var(--wash),transparent 65%);mix-blend-mode:soft-light;transition:background .6s}
-#tone::after{background:radial-gradient(ellipse 85% 75% at 50% 55%,transparent 45%,rgba(10,14,24,.55) 100%),rgba(10,14,24,.12)}
+#tone::before{background:radial-gradient(130% 65% at 50% -5%,var(--wash),transparent 65%),linear-gradient(0deg,var(--wash2),transparent 50%);mix-blend-mode:soft-light;transition:background .6s}
+#tone::after{background:radial-gradient(ellipse 85% 75% at 50% 55%,transparent 50%,rgba(30,16,40,.45) 100%),rgba(20,12,30,.08)}
 #grain{inset:-50%;opacity:.07;mix-blend-mode:overlay;z-index:1;background-size:180px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");animation:grain .9s steps(5) infinite}
 @keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-4%,3%)}40%{transform:translate(3%,-5%)}60%{transform:translate(-2%,5%)}80%{transform:translate(5%,1%)}100%{transform:translate(0,0)}}
 @media (prefers-reduced-motion:reduce){#grain{animation:none}}
@@ -125,17 +125,24 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
   </div>
 </header>
 <main>
-  <div class="chips" role="group" aria-label="카드 선택">
-    <button data-card="snack" aria-pressed="true">Snack</button>
-    <button data-card="travel" aria-pressed="false">Travel</button>
+  <div class="chips" role="group" aria-label="카드 종류">
+    <button data-cat="snack" aria-pressed="true">Snakk</button>
+    <button data-cat="travel" aria-pressed="false">Travel</button>
   </div>
   <div class="rail" id="rail">
     <figure class="card" data-card="snack">
-      <div class="flip" role="button" tabindex="0" aria-label="Snack 카드 뒤집기">
-        <div class="face"><img src="img/snack_front.jpg" alt="Snack 카드 앞면"></div>
-        <div class="face back"><img src="img/snack_back.jpg" alt="Snack 카드 뒷면"></div>
+      <div class="flip" role="button" tabindex="0" aria-label="Snakk 카드 뒤집기">
+        <div class="face"><img src="img/snack_front.jpg" alt="Snakk 카드 앞면"></div>
+        <div class="face back"><img src="img/snack_back.jpg" alt="Snakk 카드 뒷면"></div>
       </div>
-      <figcaption><b>Snack</b><span>Heritage Refresh · Daily Dose</span></figcaption>
+      <figcaption><b>Snakk</b><span>Heritage Refresh · Daily Dose</span></figcaption>
+    </figure>
+    <figure class="card" data-card="snack2">
+      <div class="flip" role="button" tabindex="0" aria-label="Snakk Cookie 카드 뒤집기">
+        <div class="face"><img src="img/snack2_front.jpg" alt="Snakk Cookie 카드 앞면"></div>
+        <div class="face back"><img src="img/snack2_back.jpg" alt="Snakk Cookie 카드 뒷면"></div>
+      </div>
+      <figcaption><b>Snakk Cookie</b><span>갓 구운 쿠키 카드</span></figcaption>
     </figure>
     <figure class="card" data-card="travel">
       <div class="flip" role="button" tabindex="0" aria-label="Travel 카드 뒤집기">
@@ -144,8 +151,15 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
       </div>
       <figcaption><b>Travel</b><span>Boarding pass · Travel card</span></figcaption>
     </figure>
+    <figure class="card" data-card="travel2">
+      <div class="flip" role="button" tabindex="0" aria-label="Travel Window 카드 뒤집기">
+        <div class="face"><img src="img/travel2_front.jpg" alt="Travel Window 카드 앞면"></div>
+        <div class="face back"><img src="img/travel2_back.jpg" alt="Travel Window 카드 뒷면"></div>
+      </div>
+      <figcaption><b>Travel Window</b><span>창가 자리 · Travel card</span></figcaption>
+    </figure>
   </div>
-  <div class="dots" aria-hidden="true"><i class="on"></i><i></i></div>
+  <div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
   <div class="acts">
     <button class="big acc" id="handBtn">손 위에 올려보기</button>
   </div>
@@ -180,7 +194,9 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 
 <script type="module">
 {
-const CARDS = { snack: 'models/snack.glb', travel: 'models/travel.glb' };
+const CARDS = { snack: 'models/snack.glb', snack2: 'models/snack2.glb', travel: 'models/travel.glb', travel2: 'models/travel2.glb' };
+const ORDER = Object.keys(CARDS);
+const catOf = id => id.startsWith('travel') ? 'travel' : 'snack';   // 카드 종류: snack(Snakk) / travel
 let card = 'snack';
 const status = document.getElementById('status');
 
@@ -191,10 +207,10 @@ const chips = [...document.querySelectorAll('.chips button')];
 const dots = [...document.querySelectorAll('.dots i')];
 const setActive = name => {
   card = name;
-  chips.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.card === name)));
+  chips.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cat === catOf(name))));
   const i = cardsEl.findIndex(c => c.dataset.card === name);
   dots.forEach((d, j) => d.classList.toggle('on', j === i));
-  document.getElementById('handBtn').textContent = name === 'travel' ? '세계여행하기' : '손 위에 올려보기';
+  document.getElementById('handBtn').textContent = catOf(name) === 'travel' ? '세계여행하기' : '손 위에 올려보기';
 };
 const scrollToCard = (name, smooth = true) => {
   const c = cardsEl.find(c => c.dataset.card === name);
@@ -204,7 +220,7 @@ const pick = name => {
   setActive(name); scrollToCard(name, !hand.active);
   if (hand.active) hand.load(name).catch(() => {});
 };
-chips.forEach(b => b.addEventListener('click', () => pick(b.dataset.card)));
+chips.forEach(b => b.addEventListener('click', () => { if (catOf(card) !== b.dataset.cat) pick(ORDER.find(id => catOf(id) === b.dataset.cat)); }));
 // 스크롤 위치에 따라 가운데 카드는 크게, 옆 카드는 작고 옅게
 const onScroll = () => {
   const mid = rail.scrollLeft + rail.clientWidth / 2;
@@ -267,7 +283,7 @@ async function setup() {
   renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.88;
   scene = new THREE.Scene();
   const pm = new THREE.PMREMGenerator(renderer);
   scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -325,7 +341,7 @@ let fxGroup;
 function burst() {
   if (!fxOn || !cardRoot || !(cardRoot.visible || deskOn)) return;
   if (!fxGroup) { fxGroup = new THREE.Group(); scene.add(fxGroup); }
-  const list = EMOJI[card] || EMOJI.snack, n = 14;
+  const list = EMOJI[catOf(card)], n = 14;
   const k = Math.min(innerWidth, innerHeight) / 390;
   const cx = cur.x, cy = cur.y + 0.0428 * cur.s * CARD_SCALE; // 카드 중심
   for (let i = 0; i < n; i++) {
@@ -361,7 +377,7 @@ function updateBurst(dt) {
 hand.load = name => new Promise((res, rej) => {
   const put = obj => {
     if (cardMesh) cardRoot.remove(cardMesh);
-    cardMesh = obj; cardRoot.add(obj); el.dataset.tone = name;
+    cardMesh = obj; cardRoot.add(obj); el.dataset.tone = catOf(name);
     if (deskHolder) { deskHolder.clear(); deskHolder.add(obj.clone()); }
     res();
   };
@@ -442,7 +458,7 @@ let handPts = null;
 function coverRect(w, h, W, H) { const s = Math.max(W / w, H / h); return [(W - w * s) / 2, (H - h * s) / 2, w * s, h * s]; }
 
 function drawVirtualBg() {
-  const on = card === 'travel' && travelBg.complete && travelBg.naturalWidth > 0;
+  const on = catOf(card) === 'travel' && travelBg.complete && travelBg.naturalWidth > 0;
   el.classList.toggle('vbg', on);
   if (!on) return;
   const W = innerWidth, H = innerHeight, k = Math.min(devicePixelRatio, 1.5);
@@ -452,7 +468,7 @@ function drawVirtualBg() {
   }
   bctx.setTransform(k, 0, 0, k, 0, 0);
   bctx.drawImage(travelBg, ...coverRect(travelBg.naturalWidth, travelBg.naturalHeight, W, H));
-  if (card === 'travel' || !handPts || video.readyState < 2) return;   // Travel은 사진만
+  if (catOf(card) === 'travel' || !handPts || video.readyState < 2) return;   // Travel은 사진만
   // 1) 손 모양 마스크(관절 기반) + 피부색으로 다듬기
   const P = handPts, pw = Math.hypot(P[5].x - P[17].x, P[5].y - P[17].y);
   const mw = maskC.width, mh = maskC.height, ms = mw / W;
@@ -526,12 +542,14 @@ function captureFrame() {
     x.drawImage(video, ...coverRect(video.videoWidth, video.videoHeight, W, H)); x.restore();
   }
   // 화면과 같은 톤: 살짝 어둡게 + 위쪽 빛 + 가장자리 어둡게
-  x.fillStyle = 'rgba(10,14,24,.24)'; x.fillRect(0, 0, W, H);
+  x.fillStyle = 'rgba(20,12,30,.16)'; x.fillRect(0, 0, W, H);
   const wash = x.createRadialGradient(W / 2, -H * 0.05, 0, W / 2, -H * 0.05, H * 0.7);
-  wash.addColorStop(0, card === 'travel' ? 'rgba(255,206,150,.28)' : 'rgba(225,238,255,.22)'); wash.addColorStop(1, 'rgba(0,0,0,0)');
+  wash.addColorStop(0, 'rgba(255,190,160,.26)'); wash.addColorStop(1, 'rgba(255,190,160,0)');
   x.fillStyle = wash; x.fillRect(0, 0, W, H);
+  const low = x.createLinearGradient(0, H, 0, H * 0.5); low.addColorStop(0, 'rgba(160,150,255,.16)'); low.addColorStop(1, 'rgba(160,150,255,0)');
+  x.fillStyle = low; x.fillRect(0, 0, W, H);
   const vg = x.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.35, W / 2, H * 0.55, Math.max(W, H) * 0.75);
-  vg.addColorStop(0, 'rgba(10,14,24,0)'); vg.addColorStop(1, 'rgba(10,14,24,.5)');
+  vg.addColorStop(0, 'rgba(10,14,24,0)'); vg.addColorStop(1, 'rgba(30,16,40,.42)');
   x.fillStyle = vg; x.fillRect(0, 0, W, H);
   // 카드·이모지
   x.drawImage(canvas, 0, 0, W, H);
@@ -592,7 +610,7 @@ function nextTravelBg() {
 
 function loop() {
   raf = requestAnimationFrame(loop);
-  const travel = card === 'travel';
+  const travel = catOf(card) === 'travel';
   if (travel) placeTravelCard();
   else if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
     lastVideoTime = video.currentTime;
@@ -612,8 +630,8 @@ function loop() {
       touchEl.style.transform = `translate(${topX}px, ${topY - 18}px) translate(-50%, -100%)`;
       touchEl.style.opacity = 1;
       shadow.visible = true;
-      shadow.position.set(cur.x, cur.y, -500);
-      shadow.scale.set(0.07 * cur.s, 0.022 * cur.s, 1);
+      shadow.position.set(cur.x - Math.sin(cur.roll) * 0.014 * cur.s, cur.y + Math.cos(cur.roll) * 0.014 * cur.s, -500);   // 카드 밑동 뒤쪽
+      shadow.scale.set(0.062 * cur.s, 0.018 * cur.s, 1); shadow.material.opacity = 0.75;
       cardRoot.visible = true; lostAt = 0; setHint('');
       if (deskOn) { deskOn = false; anchor = null; deskRoot.visible = false; }
     } else {
@@ -696,18 +714,18 @@ const standalone = matchMedia('(display-mode: standalone)').matches || navigator
 if (standalone) document.getElementById('install').hidden = true;
 if (location.hash === '#hand') openHand();
 document.getElementById('x').addEventListener('click', closeHand);
-document.getElementById('handCard').addEventListener('click', () => haptic() || pick(card === 'snack' ? 'travel' : 'snack'));
+document.getElementById('handCard').addEventListener('click', () => haptic() || pick(ORDER[(ORDER.indexOf(card) + 1) % ORDER.length]));
 // 화면을 좌우로 밀어서 회전
 let dragStart = 0;
 let downAt = 0, downX = 0, downY = 0;
 el.addEventListener('pointerdown', e => { if (e.target.closest('button') || !pv.hidden) return; spinAnim = null; dragX = e.clientX; dragStart = yawTarget; downAt = performance.now(); downX = e.clientX; downY = e.clientY; el.setPointerCapture(e.pointerId); });
-el.addEventListener('pointermove', e => { if (dragX === null || card === 'travel') return; yawTarget += (e.clientX - dragX) * 0.012; dragX = e.clientX; });
+el.addEventListener('pointermove', e => { if (dragX === null || catOf(card) === 'travel') return; yawTarget += (e.clientX - dragX) * 0.012; dragX = e.clientX; });
 const endDrag = e => {
   if (dragX === null) return;
   const tap = performance.now() - downAt < 350 && Math.hypot(e.clientX - downX, e.clientY - downY) < 12;
   const dy = e.clientY - downY, dx = e.clientX - downX;
   if (dy > 140 && Math.abs(dx) < 90) { dragX = null; yawTarget = dragStart; closeHand(); return; }  // 아래로 쓸어내려 닫기
-  if (tap && card === 'travel' && cardRoot && cardRoot.visible) {   // Travel: 반 바퀴 뒤집기
+  if (tap && catOf(card) === 'travel' && cardRoot && cardRoot.visible) {   // Travel: 반 바퀴 뒤집기
     haptic(); yawTarget = yaw; spinAnim = { from: yaw, to: Math.round(yaw / Math.PI) * Math.PI + Math.PI, t: 0 }; burst(); dragX = null; return;
   }
   if (tap && (deskOn || (cardRoot && cardRoot.visible))) haptic();
