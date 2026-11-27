@@ -80,9 +80,6 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .hbar{position:absolute;left:0;right:0;display:flex;justify-content:space-between;gap:10px;padding:14px 16px;z-index:2}
 .hbar.top{top:env(safe-area-inset-top)}
 .hbar.bot{bottom:calc(env(safe-area-inset-bottom) + 10px);display:grid;grid-template-columns:1fr 46px auto 46px 1fr;align-items:center;gap:14px}
-#reBg{grid-column:2;width:46px;height:46px;padding:0;display:grid;place-items:center}
-#reBg svg{width:20px;height:20px}
-#hand:not([data-tone=travel]) #reBg{visibility:hidden}
 .sp{grid-column:4}
 #thumb{justify-self:start;width:54px;height:54px;padding:0;border-radius:14px;overflow:hidden;border:2px solid rgba(255,255,255,.9);background:#000;box-shadow:0 6px 18px rgba(0,0,0,.3);cursor:pointer}
 #thumb[hidden]{display:block;visibility:hidden}
@@ -179,7 +176,6 @@ button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
   <p id="hint">카메라를 준비하고 있어요…</p>
   <div class="hbar bot">
     <button id="thumb" aria-label="방금 찍은 사진 저장" hidden><img alt=""></button>
-    <button class="pill" id="reBg" aria-label="배경 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
     <button id="shutter" aria-label="사진 찍기"><span></span></button>
     <span class="sp" aria-hidden="true"></span>
     <button class="pill" id="handCard">카드 바꾸기</button>
@@ -445,8 +441,9 @@ function pose(lm, wl) {
 // ---------- Travel 가상 배경: 여행 사진 위에 손만 오려서 합성 ----------
 // 사진은 페이지를 새로 불러올 때 한 번만 무작위로 고름
 const TRAVEL_BGS = ['bg/travel1.jpg', 'bg/travel2.jpg', 'bg/travel3.jpg', 'bg/travel4.jpg', 'bg/travel5.jpg'];
-const travelBg = new Image();
-travelBg.src = TRAVEL_BGS[Math.floor(Math.random() * TRAVEL_BGS.length)];
+const bgImgs = TRAVEL_BGS.map(u => { const im = new Image(); im.src = u; return im; });
+let bgIdx = Math.floor(Math.random() * TRAVEL_BGS.length), bgPrev = null, bgFade = 1;
+let travelBg = bgImgs[bgIdx];
 const bgc = document.getElementById('bgc'), bctx = bgc.getContext('2d');
 const maskC = document.createElement('canvas'), mctx = maskC.getContext('2d', { willReadFrequently: true });
 const armC = document.createElement('canvas'), actx = armC.getContext('2d', { willReadFrequently: true });
@@ -467,7 +464,11 @@ function drawVirtualBg() {
     maskC.width = armC.width = vidC.width = Math.round(W / 2); maskC.height = armC.height = vidC.height = Math.round(H / 2);   // 절반 해상도 마스크 → 확대하면 가장자리가 부드러움
   }
   bctx.setTransform(k, 0, 0, k, 0, 0);
-  bctx.drawImage(travelBg, ...coverRect(travelBg.naturalWidth, travelBg.naturalHeight, W, H));
+  const paint = im => bctx.drawImage(im, ...coverRect(im.naturalWidth, im.naturalHeight, W, H));
+  if (bgPrev && bgFade < 1 && bgPrev.naturalWidth) {   // 이전 사진 위로 새 사진이 서서히 나타남
+    paint(bgPrev); bgFade = Math.min(1, bgFade + 0.045);
+    bctx.globalAlpha = bgFade; paint(travelBg); bctx.globalAlpha = 1;
+  } else paint(travelBg);
   if (catOf(card) === 'travel' || !handPts || video.readyState < 2) return;   // Travel은 사진만
   // 1) 손 모양 마스크(관절 기반) + 피부색으로 다듬기
   const P = handPts, pw = Math.hypot(P[5].x - P[17].x, P[5].y - P[17].y);
@@ -580,7 +581,6 @@ shutter.addEventListener('click', () => {
   } catch (e) { console.error(e); setHint('사진을 저장하지 못했어요.'); }
 });
 thumb.addEventListener('click', () => { if (lastShot) saveShot(lastShot); });
-document.getElementById('reBg').addEventListener('click', () => { haptic(); nextTravelBg(); });
 document.getElementById('pvClose').addEventListener('click', () => { pv.hidden = true; });
 
 // Travel: 손 없이 여행 사진 위 가운데에 카드를 정면으로 띄움. 탭하면 뒤집기만
@@ -603,9 +603,9 @@ function placeTravelCard() {
   touchEl.style.opacity = 1;
 }
 function nextTravelBg() {
-  const curIdx = TRAVEL_BGS.findIndex(u => travelBg.src.endsWith(u));
-  let i; do { i = Math.floor(Math.random() * TRAVEL_BGS.length); } while (i === curIdx && TRAVEL_BGS.length > 1);
-  travelBg.src = TRAVEL_BGS[i];
+  let i; do { i = Math.floor(Math.random() * bgImgs.length); } while (i === bgIdx && bgImgs.length > 1);
+  bgPrev = travelBg; bgIdx = i; travelBg = bgImgs[i];
+  bgFade = travelBg.complete && travelBg.naturalWidth ? 0 : 1;
 }
 
 function loop() {
@@ -726,7 +726,7 @@ const endDrag = e => {
   const dy = e.clientY - downY, dx = e.clientX - downX;
   if (dy > 140 && Math.abs(dx) < 90) { dragX = null; yawTarget = dragStart; closeHand(); return; }  // 아래로 쓸어내려 닫기
   if (tap && catOf(card) === 'travel' && cardRoot && cardRoot.visible) {   // Travel: 반 바퀴 뒤집기
-    haptic(); yawTarget = yaw; spinAnim = { from: yaw, to: Math.round(yaw / Math.PI) * Math.PI + Math.PI, t: 0 }; burst(); dragX = null; return;
+    haptic(); yawTarget = yaw; spinAnim = { from: yaw, to: Math.round(yaw / Math.PI) * Math.PI + Math.PI, t: 0 }; burst(); nextTravelBg(); dragX = null; return;
   }
   if (tap && (deskOn || (cardRoot && cardRoot.visible))) haptic();
   if (tap && deskOn) { flip.from = flip.angle; flip.to = Math.round(flip.angle / Math.PI) * Math.PI + Math.PI; flip.t = 0; burst(); }  // 책상: 뒤집기
